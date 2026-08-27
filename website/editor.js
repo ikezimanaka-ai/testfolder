@@ -19,6 +19,7 @@ function initializeCanvas() {
 }
 
 initializeCanvas();
+
 window.addEventListener('resize', initializeCanvas);
 const engine = new Engine({ fps: 30, canvas });
 const templates = [];
