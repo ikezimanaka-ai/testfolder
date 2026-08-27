@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>website の仕組みをやさしく読む</title>
+  <style>
+    :root {
+      --ink: #263238;
+      --muted: #607078;
+      --paper: #f7f4ee;
+      --panel: #fffdf9;
+      --line: #d9d1c5;
+      --accent: #126782;
+      --accent-soft: #dceff2;
+      --warm: #b85c38;
+      --code: #202c32;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Georgia, "Yu Mincho", "Hiragino Mincho ProN", serif;
+      line-height: 1.85;
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 265px;
+      gap: 44px;
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0 80px;
+    }
+
+    main { min-width: 0; }
+    header {
+      padding: 34px 38px 30px;
+      border: 1px solid var(--line);
+      border-top: 7px solid var(--accent);
+      background: var(--panel);
+      box-shadow: 10px 10px 0 #e7dfd2;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--warm);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: .78rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { line-height: 1.3; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.45rem); font-weight: 700; }
+    h2 {
+      margin: 68px 0 20px;
+      padding-top: 18px;
+      border-top: 2px solid var(--ink);
+      font-size: 1.85rem;
+      scroll-margin-top: 25px;
+    }
+    h3 { margin: 34px 0 10px; color: var(--accent); font-size: 1.3rem; scroll-margin-top: 25px; }
+    p { margin: 0 0 18px; }
+    a { color: var(--accent); }
+    header a { font-weight: 700; }
+
+    .lead { margin: 22px 0 0; color: #42535a; font-size: 1.13rem; }
+    .note, .warning {
+      margin: 24px 0;
+      padding: 16px 20px;
+      border-left: 5px solid var(--accent);
+      background: var(--accent-soft);
+    }
+    .warning { border-left-color: var(--warm); background: #f7e7de; }
+    .flow {
+      padding: 18px 20px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: #eee9df;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      line-height: 1.65;
+      white-space: pre;
+    }
+    code {
+      padding: 2px 5px;
+      background: #e9e4da;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: .9em;
+    }
+    pre {
+      margin: 18px 0 24px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      color: #edf5f2;
+      background: var(--code);
+      border-left: 4px solid var(--warm);
+      font: .88rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    ul, ol { padding-left: 1.5em; }
+    li { margin: 5px 0; }
+    table { width: 100%; margin: 18px 0 25px; border-collapse: collapse; background: var(--panel); }
+    th, td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #e9f0ee; }
+
+    aside {
+      align-self: start;
+      position: sticky;
+      top: 24px;
+      padding: 22px 18px;
+      border: 1px solid var(--line);
+      background: #edf3f0;
+    }
+    aside h2 { margin: 0 0 10px; padding: 0; border: 0; font-size: 1.15rem; }
+    aside p { color: var(--muted); font-size: .88rem; line-height: 1.55; }
+    nav a {
+      display: block;
+      padding: 8px 10px;
+      border-bottom: 1px solid #d1ddd8;
+      text-decoration: none;
+      font-size: .91rem;
+    }
+    nav a:hover, nav a:focus { color: var(--warm); background: #fffdf9; }
+    .back { margin-top: 18px; font-size: .86rem; }
+    footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+
+    @media (max-width: 780px) {
+      .page { display: block; width: min(100% - 24px, 680px); padding-top: 18px; }
+      aside { position: static; margin: 28px 0 36px; }
+      header { padding: 25px 22px; }
+      h2 { margin-top: 48px; font-size: 1.55rem; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+      th, td { white-space: normal; min-width: 145px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="page"></div>
+  <script src="../qs/domDeal.js"></script>
+  <script>
+    const page = new Deal(document.getElementById("page"));
+    const layout = page.CE("div", { class: "page" });
+    const article = new Deal(layout).CE("main", { id: "main-content" });
+    const sidebar = new Deal(layout).CE("aside", { id: "chapter-menu" });
+
+    new Deal(article).CE("header", {
+      html: '<p class="eyebrow">website / learning guide</p>' +
+        '<h1>Canvasゲームの仕組みを<br>やさしく読む</h1>' +
+        '<p class="lead">このページは、<a href="./index.html">最小描画デモ</a>と<a href="./demo.html">Engineデモ</a>を、上から順に読み解くための説明書です。コードを丸暗記するのではなく、「何を作り、なぜその順番なのか」をつかむことを目標にします。</p>' +
+        '<p><strong>手を動かす補助教材:</strong> <a href="./explan/index.html">DOM・Canvas・Engineの小さな実験集</a></p>'
+    });
+
+    const menu = new Deal(sidebar);
+    menu.CE("h2", { text: "章一覧" });
+    menu.CE("p", { text: "章をクリックすると、左の説明へ移動します。" });
+    const nav = menu.CE("nav");
+    const chapters = [
+      ["top", "0. はじめに"], ["map", "1. ファイルの地図"], ["flow", "2. 起動から描画まで"],
+      ["dom", "3. DealでDOMを作る"], ["canvas", "4. Canvasに描く"], ["engine", "5. Engineの考え方"],
+      ["object", "6. GameObject"], ["display", "7. Display"], ["input", "8. 入力"],
+      ["loop", "9. ゲームループ"], ["demo", "10. demo.html"], ["build", "11. 1から作る"], ["limits", "12. 注意点"]
+    ];
+    chapters.forEach(([id, label]) => menu.CE("a", { attrs: { href: "#" + id }, text: label }));
+
+    const chapterDetails = {
+      top: `
+        <h3>たとえば、ゲーム画面を一枚の紙だと考える</h3>
+        <p>Canvas は白紙のようなものです。そこへ「青い四角をここに描く」と命令すると、四角が現れます。ただし、紙の上に描いた四角は、それだけでは「プレイヤー」にはなりません。次のフレームで別の場所へ描くには、プレイヤーの位置を JavaScript のデータとして持ち、古い紙を消してから新しい位置へ描き直します。</p>
+        <p>このプロジェクトのクラス分けは、その仕事を分担するためです。データを持つ人、描く人、入力を覚える人を分けると、「見た目を変えたい」と「移動のルールを変えたい」がぶつかりません。</p>
+        <pre>// 画面に出るものを、まずデータとして表す
+const player = { x: 100, y: 80, width: 40, height: 40 };
+// あとは毎フレーム player の値を使って描く</pre>
+      `,
+      map: `
+        <h3>ファイルを読むときのコツ</h3>
+        <p>HTML の <code>script</code> は、上から順に読み込まれます。あるファイルで作ったクラスを次のファイルで使うなら、定義するファイルを先に置きます。<code>index.html</code> で <code>domDeal.js</code> が先なのは、<code>script.js</code> がすぐに <code>new Deal(...)</code> を実行するからです。</p>
+        <p>一方、<code>engine.js</code> は <code>demo.html</code> だけが使います。最小描画デモと Engine デモを同じページで無理に動かさず、目的ごとに入口を分けています。ページを増やすときも、最初に「どのクラスを先に必要とするか」を決めると読み込み順を決められます。</p>
+        <pre>&lt;!-- 使う側より、定義する側を先に読む --&gt;
+&lt;script src="../qs/domDeal.js"&gt;&lt;/script&gt;
+&lt;script src="./script.js"&gt;&lt;/script&gt;</pre>
+      `,
+      flow: `
+        <h3>load を待つ理由を確かめる</h3>
+        <p>外部 script の読み込みは、HTML にタグを書いた瞬間に必ず終わるとは限りません。ネットワークやキャッシュの状態によって、次の処理より後になる可能性があります。<code>CD3 is not defined</code> と表示されたら、ほぼ「CD3 を使う前に <code>canvasDealer.js</code> が終わっていない」状態です。</p>
+        <p><code>script.js</code> は、まず script 要素があるかを探し、まだ読み込み中なら <code>load</code> を登録します。読み込みに失敗した場合は <code>error</code> を表示します。この分岐があるので、動的に追加した場合と、すでに HTML にあった場合の両方を扱えます。</p>
+        <pre>script.addEventListener("load", () => {
+  // この中なら CD3 を使える
+  new CD3(canvas, 800, 600);
+});</pre>
+      `,
+      dom: `
+        <h3>リンクを章へつなぐ仕組み</h3>
+        <p>このガイドの右側メニューでは、章データの <code>id</code> と見出しの <code>id</code> を同じ文字にしています。たとえば章データが <code>["canvas", "4. Canvasに描く"]</code> なら、リンクは <code>href="#canvas"</code>、見出しは <code>id="canvas"</code> です。ブラウザはこの二つを自動的に結び、クリック時にその場所へスクロールします。</p>
+        <p>ここで <code>text</code> を使っているのは、章名をただの文字として安全に入れるためです。リンクの属性は <code>attrs</code>、見出しの識別子は <code>id</code> と、役割ごとに options を使い分けています。</p>
+        <pre>const link = new Deal(nav).CE("a", {
+  attrs: { href: "#canvas" },
+  text: "4. Canvasに描く"
+});</pre>
+        <p><code>GET</code>、<code>SET</code>、<code>RELATED</code> は、作った後の DOM を調べるための道具です。たとえば表示が出ないとき、<code>GET("#canvas")</code> が <code>null</code> なら、描画処理ではなく「要素を作る処理」か ID の指定を調べます。</p>
+      `,
+      canvas: `
+        <h3>なぜ描画クラスを三つに分けるのか</h3>
+        <p><code>CD1</code> は「Canvas の座標をそのまま使いたい」場合に分かりやすい層です。<code>CD2</code> は画像と簡易図形を同じ入口で受けたい場合の層です。<code>CD3</code> はゲーム世界の座標を画面サイズから隠したい場合の層です。上位クラスほど便利になりますが、入力形式や座標変換という判断も増えます。</p>
+        <p>描画は通常、前に描いたものが後のものに隠されます。背景を先に描き、プレイヤーを後に描くのはこのためです。毎フレーム動く物体を描く場合は、先に <code>clearCanvas()</code> で前の絵を消さないと、物体の通った跡が残ります。</p>
+        <pre>const drawer = new CD1(canvas);
+function draw() {
+  drawer.clearCanvas();
+  drawer.drawRectangle(0, 0, canvas.width, canvas.height, "white");
+  drawer.drawCircle(player.x, player.y, 20, "red");
+  requestAnimationFrame(draw);
+}</pre>
+        <p><code>CD3</code> の変換は、座標だけでなく幅や高さにも必要です。位置だけを縮めて幅を縮めなければ、図形の大きさだけが画面からはみ出します。だから <code>worldToCanvasSize</code> が用意されています。</p>
+      `,
+      engine: `
+        <h3>Engineに全部を詰め込まない理由</h3>
+        <p>Engine が「敵は毎秒2歩動く」「ゲームオーバーなら止める」まで決めてしまうと、別のゲームで使い回しにくくなります。現在の Engine は、描画の共通部分と入力の共通部分だけを提供し、ルールは <code>demo.html</code> に残しています。</p>
+        <p>この設計では、Engine を起動しただけで物体が動かなくても正常です。<code>GameObject</code> の <code>x</code> や <code>y</code> を変更する更新処理を、アプリ側で書く必要があります。表示されないときは「物体を追加したか」と「物体を動かしたか」と「Engine を開始したか」を別々に確認します。</p>
+        <pre>function update() {
+  if (engine.input.isKeyPressed("ArrowRight")) {
+    player.move(4, 0);
+  }
+}
+function frame() {
+  update();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);</pre>
+      `,
+      object: `
+        <h3>中心座標で持つと何が便利か</h3>
+        <p>物体を中心座標で持つと、回転の中心が自然に物体の真ん中になります。描画では <code>translate(x, y)</code> の後に <code>fillRect(-width / 2, -height / 2, width, height)</code> としているためです。左上座標で持つ設計もできますが、その場合は回転や中心からの距離を毎回計算する必要があります。</p>
+        <p>ただし、現在の <code>containsPoint</code> と <code>intersectsObject</code> は回転角を考慮しない軸平行矩形です。見た目が回転していても、判定は回転前の四角として行われます。これは簡単で速い一方、斜めの物体を正確に選びたいゲームには追加実装が必要です。</p>
+        <pre>const box = new GameEngine.GameObject({
+  x: 100, y: 100, width: 40, height: 20
+});
+box.rotateTo(45);
+console.log(box.containsPoint(100, 100)); // 中心なので true</pre>
+      `,
+      display: `
+        <h3>レイヤーを分ける具体的な意味</h3>
+        <p>背景と UI を一つの配列に混ぜると、UI を必ず最後に描くためのルールが散らばります。Display を分ければ、<code>background</code>、<code>characters</code>、<code>ui</code> の順に登録するだけで、重なり順を読めます。</p>
+        <p><code>findByTag("enemy")</code> は、全オブジェクトを直接調べる代わりに種類で絞り込む方法です。<code>findByCondition</code> なら「画面の外に出たもの」など任意の条件で探せます。返る配列はコピーなので、検索結果の配列を変更しても Display の配列そのものは壊れません。</p>
+        <pre>const enemies = layer.findByTag("enemy");
+for (const enemy of enemies) {
+  if (enemy.touchesDisplayEdge(layer)) {
+    enemy.moveTo(20, enemy.y);
+  }
+}</pre>
+      `,
+      input: `
+        <h3>justClicked と pressed の違い</h3>
+        <p><code>justClicked</code> は「このフレームで押し始めた」、<code>pressed</code> は「今も押している」です。選択開始は一回だけでよいので <code>justClicked</code>、ドラッグ中の追従は押している間続けたいので <code>pressed</code> を使います。ここを逆にすると、クリックしていない間も選択処理を繰り返したり、ドラッグが一瞬で終わったりします。</p>
+        <p>キーボードも同じ考え方で、押下イベントの中で一回だけ動かすのではなく、押下中のキーを Set に保持して毎フレーム確認します。これにより、キーを長押ししたときに滑らかに動かせます。</p>
+        <pre>if (input.mouse.justClicked) {
+  selected = pickTopObjectAt(input.mouse.x, input.mouse.y);
+}
+if (input.mouse.pressed && selected) {
+  selected.moveTo(input.mouse.x, input.mouse.y);
+}</pre>
+      `,
+      loop: `
+        <h3>更新と描画を分けて考える</h3>
+        <p>一回のフレームには、「状態を変える更新」と「現在の状態を絵にする描画」があります。たとえば player の <code>x</code> を先に100から104へ変え、その後に104の場所へ描けば、動いた結果が表示されます。描画だけを繰り返しても、状態が変わらないので画面は静止したままです。</p>
+        <p>現在の Engine は描画のタイミングだけを持ち、更新の呼び出しは持ちません。アプリ側の更新処理を Engine に統合する場合は、FPS と更新速度を混同しないよう、経過時間 <code>dt</code> を使う設計も検討します。</p>
+        <pre>// 時間に応じた移動の考え方
+player.x += speedPerSecond * dt / 1000;</pre>
+        <p>今の <code>Engine.start()</code> は <code>dt</code> を計算していますが、外へ渡していません。そのため、このコードでは FPS の間隔を調整するだけで、移動量はデモ側が決めています。</p>
+      `,
+      demo: `
+        <h3>demoを改造する練習</h3>
+        <p>まず <code>proto</code> の色を変えたいところですが、現在の <code>GameObject.draw()</code> は色をプロパティから読まず、固定の青色を使います。そのため、色を変えるには <code>GameObject</code> に <code>color</code> を保存し、<code>draw</code> の <code>fillStyle</code> で使う変更が必要です。</p>
+        <p>次に、<code>pickTopObjectAt</code> の探索順を前からに変えると、重なった物体でどれが選ばれるかが変わります。描画順と選択順は同じ考え方で揃える必要があります。さらに <code>findByTag</code> を使えば、クリック対象を敵だけに限定できます。</p>
+        <pre>// 例: box タグを持つ物体だけを選ぶ
+const candidates = ds.findByTag("box");
+for (let j = candidates.length - 1; j >= 0; j--) {
+  if (candidates[j].containsPoint(x, y)) return candidates[j];
+}</pre>
+      `,
+      build: `
+        <h3>各段階で見るべき結果</h3>
+        <p>1段階目では Console にエラーがなく、Canvas が HTML に存在することを確認します。2段階目では固定の四角が一つ出ること、3段階目では画面を消してから毎フレーム描けることを確認します。その後に物体の配列、入力、衝突判定を一つずつ追加します。</p>
+        <p>たとえばクリックが動かない場合、いきなり Engine を疑いません。まず <code>pointerdown</code> が届いているか、次に <code>mouse.x</code> と <code>mouse.y</code> が正しいか、その次に <code>containsPoint</code> が true になるかを調べます。値を一つずつ表示すると、問題の場所が見つかります。</p>
+        <pre>console.log({
+  x: engine.input.mouse.x,
+  y: engine.input.mouse.y,
+  clicked: engine.input.mouse.justClicked
+});</pre>
+      `,
+      limits: `
+        <h3>制限を知っておく理由</h3>
+        <p>制限は「使えない」という意味ではなく、「どこまでが今のコードの責任か」を示します。たとえば <code>programs</code> に関数を入れても自動実行されません。自動実行を期待するなら、Engine に実行処理を追加するか、ゲーム側の更新関数から明示的に呼ぶ必要があります。</p>
+        <p>また、Display の合成に使うオフスクリーン Canvas は Engine 起動後にサイズごとにキャッシュして再利用します。小さい実験には分かりやすい方法ですが、大量のエフェクトでは負荷を測定し、さらに描画領域を絞るなどの改良を考えます。</p>
+        <pre>// 使う前に、今の実装が何を保証するかを確認
+if (!display.paused) {
+  updateObjects();
+}
+// pauseAll() だけでは updateObjects は止まらない</pre>
+      `
+    };
+
+    function section(id, title, html) {
+      const heading = new Deal(article).CE("h2", { id, text: title });
+      new Deal(article).CE("div", { html: html + (chapterDetails[id] || "") });
+      return heading;
+    }
+
+    section("top", "0. まず、何を作っているの？", `
+      <p>この <code>website</code> は、ブラウザの画面に図形を描き、図形を動かし、マウスやキーボードに反応させるための実験場所です。普通の HTML は文章やボタンを並べるのが得意ですが、ゲームの画面は毎秒何度も絵を描き直す必要があります。そのために使うのが Canvas です。</p>
+      <p>ただし Canvas だけでは、ゲームの「プレイヤー」や「敵」や「クリックされたか」といった意味は分かりません。そこでこのプロジェクトでは、役割を小さなクラスへ分けています。</p>
+      <div class="note"><strong>一言でいうと:</strong> <code>GameObject</code> がゲームの物体、<code>Display</code> が物体を載せる透明な紙、<code>InputManager</code> が操作の記録係、<code>Engine</code> が紙を重ねて何度も描く係です。</div>
+      <p>この説明ページの DOM（本文と右側の章一覧）も、<code>../qs/domDeal.js</code> の <code>Deal</code> を使って JavaScript から作っています。つまり、このページ自体が <code>Deal.CE()</code> や <code>Deal.CCE()</code> の使用例にもなっています。</p>
+    `);
+
+    section("map", "1. ファイルの地図", `
+      <p>最初にファイル同士の関係を見ます。読み込み順を間違えると、クラスがまだ存在しないというエラーになります。</p>
+      <table><thead><tr><th>ファイル</th><th>やること</th><th>次に渡すもの</th></tr></thead><tbody>
+        <tr><td><code>index.html</code></td><td>空のページを用意し、スクリプトを読む</td><td><code>domDeal.js</code> → <code>script.js</code></td></tr>
+        <tr><td><code>script.js</code></td><td>DOM で Canvas を作り、サイズを決める</td><td><code>CD3</code> に Canvas を渡す</td></tr>
+        <tr><td><code>canvasDealer.js</code></td><td>Canvas の命令をクラスにまとめる</td><td><code>CD1</code> / <code>CD2</code> / <code>CD3</code></td></tr>
+        <tr><td><code>engine.js</code></td><td>物体・レイヤー・入力・ループを管理する</td><td><code>GameEngine</code> として公開</td></tr>
+        <tr><td><code>demo.html</code></td><td>Engine を使って選択・ドラッグ・移動する</td><td><code>GameEngine.Engine</code> など</td></tr>
+        <tr><td><code>gameDealer.js</code></td><td>描画クラスの拡張予定地</td><td>現状は保持だけ</td></tr>
+      </tbody></table>
+      <p><code>index.html</code> は <code>../qs/domDeal.js</code> を先に読みます。<code>script.js</code> 内で <code>new Deal(document.body)</code> を使うからです。その後で <code>script.js</code> を読み、そこで <code>canvasDealer.js</code> を追加します。</p>
+    `);
+
+    section("flow", "2. 起動してから、青い四角が出るまで", `
+      <p>最小デモを、ブラウザが行う順番で見てみましょう。</p>
+      <div class="flow">index.html
+      ↓ domDeal.js を読む
+      ↓ script.js を読む
+      ↓ createDisplay()
+      ↓ div#display と canvas#canvas を作る
+      ↓ canvasDealer.js の読み込み完了を待つ
+      ↓ initializeCanvas() でサイズを決める
+      ↓ new CD3(canvas, 800, 600)
+      ↓ drawRectangle(50, 50, 200, 100, "blue")
+      ↓ Canvas に青い四角が出る</div>
+      <p>ここで大事なのは、Canvas を作ることと、Canvas に描くことは別の仕事だという点です。<code>Deal</code> は HTML の要素を作ります。<code>CD3</code> は Canvas の絵を描きます。</p>
+      <p><code>canvasDealer.js</code> を先に読まないと <code>CD3</code> が存在しません。そこで <code>script.js</code> は script 要素の <code>load</code> イベントを待ってから描画します。外部ファイルが準備できる前に使わないためです。</p>
+      <pre>function initCanvasDealerAndDraw() {
+  const canvas = document.getElementById("canvas");
+  initializeCanvas();
+  const canvasDealer = new CD3(canvas, 800, 600);
+  canvasDealer.drawRectangle(50, 50, 200, 100, "blue");
+}</pre>
+    `);
+
+    section("dom", "3. DealでHTMLを組み立てる", `
+      <p><code>Deal</code> は、<code>document.createElement</code>、<code>appendChild</code>、属性設定などを短く書くためのヘルパーです。魔法の画面部品ではなく、最終的には普通の DOM 要素を作っています。Canvas 内のボタンなど、HTML 要素ではなく描画される UI には <code>ui.js</code> のクラスを使います。</p>
+      <h3>一番小さい例</h3>
+      <pre>const root = new Deal(document.body);
+const title = root.CE("h1", {
+  id: "title",
+  text: "ゲーム画面",
+  styles: { color: "navy" }
+});</pre>
+      <p>この例では、まず <code>body</code> を操作対象にします。<code>CE</code> は Create Element のような名前で、作った要素を対象の子へ追加し、その要素を返します。返ってきた要素を保存すれば、あとでさらに変更できます。</p>
+      <h3><code>website/index.html</code> での使い方</h3>
+      <pre>const rootDomDealer = new Deal(document.body);
+rootDomDealer.CE("div", { id: "display" });
+rootDomDealer.CCE("#display", "canvas", { id: "canvas" });</pre>
+      <p><code>CE</code> は自分が持つ対象の子へ作ります。一方 <code>CCE</code> は Create Child Element のように、セレクターで親を探して、その中へ作ります。だから2行目で作った <code>div#display</code> の中に <code>canvas#canvas</code> を入れられます。</p>
+      <h3>options の意味</h3>
+      <ul><li><code>id</code>, <code>class</code>: 要素の ID とクラス</li><li><code>text</code>: <code>textContent</code> として文字を入れる</li><li><code>html</code>: <code>innerHTML</code> として HTML を入れる</li><li><code>attrs</code>: <code>setAttribute</code> で属性を追加</li><li><code>styles</code>: 要素のインラインスタイルを設定</li><li><code>children</code>: 文字列や既存要素を子に追加</li><li><code>append: false</code>: 作るが親にはまだ追加しない</li></ul>
+      <p>この説明ページでは、たとえば <code>new Deal(article).CE("h2", { id, text: title })</code> で章見出しを作り、<code>new Deal(sidebar).CE("a", { attrs: { href: "#" + id }, text: label })</code> で右側のリンクを作っています。リンク先の ID と見出しの ID が同じなので、クリックするとブラウザがその章まで移動します。</p>
+      <h3>探す、読む、変更する</h3>
+      <pre>const deal = new Deal(document.body);
+deal.GET("#canvas");
+deal.SET("#canvas", { attrs: { "aria-label": "ゲーム画面" } });
+deal.RELATED("#canvas", "parent");</pre>
+      <p><code>GET</code> は tag、id、class、text、html、attributes をまとめて返します。<code>SET</code> と <code>MODIFY</code> は既存要素を変更します。<code>RELATED</code> は親、子、兄弟などを取得します。内部メソッドの <code>_resolveSelector</code> などは、公開メソッドを動かすための部品なので、通常のゲームコードから直接呼びません。</p>
+    `);
+
+    section("canvas", "4. Canvasに描く: CD1、CD2、CD3", `
+      <p>Canvas は画像のような描画面です。HTML の <code>div</code> に四角を置くのとは違い、JavaScript が Canvas の「筆」に命令して絵を描きます。その筆が <code>CanvasRenderingContext2D</code> です。</p>
+      <h3>CD1: Canvas の命令をそのまま包む</h3>
+      <pre>const drawer = new CD1(canvas);
+drawer.drawRectangle(10, 20, 100, 40, "red");
+drawer.drawCircle(100, 100, 20, "blue");
+drawer.drawLine(0, 0, 200, 100, "black", 2);
+drawer.drawText("hello", 10, 180);
+// drawer.clearCanvas();</pre>
+      <p><code>CD1</code> のコンストラクターは Canvas と、その context を保存します。<code>drawRectangle</code> は <code>fillStyle</code> を色にして <code>fillRect</code> を呼びます。円はパスを始め、<code>arc</code> で円周を作り、<code>fill</code> で塗ります。線は <code>moveTo</code> と <code>lineTo</code> の後に <code>stroke</code> します。</p>
+      <p>このクラスを作る理由は、ゲーム本体が毎回 context の細かい命令を書かなくてよくなるからです。描画方法を後で変えたいときも、まずここを直せます。</p>
+      <h3>CD2: 画像の代わりに四角も受け取る</h3>
+      <pre>const drawer = new CD2(canvas);
+drawer.drawImage(new Image(), 20, 20);
+drawer.drawImage([80, 40, "green"], 20, 80);</pre>
+      <p><code>CD2</code> は内部に <code>CD1</code> を持ちます。画像が <code>Image</code> なら画像を描き、3要素の配列なら <code>[幅, 高さ, 色]</code> と解釈して四角を描きます。つまり、呼び出し側は「何を描くか」を同じ <code>drawImage</code> に渡せます。</p>
+      <div class="warning">画像は読み込み完了前に描けません。また、この実装は <code>image instanceof Image</code> で判定するため、画像 URL の文字列は画像として扱いません。</div>
+      <h3>CD3: ゲームの座標を画面へ変換する</h3>
+      <p>ゲームを 800 x 600 の世界として作り、スマートフォンでは小さく表示したいことがあります。その場合、ゲーム側が毎回画面サイズを意識すると面倒です。<code>CD3</code> は論理座標を実際の Canvas 座標へ変換します。</p>
+      <pre>const drawer = new CD3(canvas, 800, 600);
+drawer.drawRectangle(50, 50, 200, 100, "blue");
+
+// 例: Canvas が 400 x 300 なら scaleX=0.5, scaleY=0.5
+// 論理 (50, 50) は実際の (25, 25) に描かれる</pre>
+      <p>幅方向は <code>scaleX = canvas.width / logicalWidth</code>、高さ方向は <code>scaleY = canvas.height / logicalHeight</code> です。座標だけでなく長方形の幅・高さ・線の端点も変換します。円の半径は縦横の小さい倍率を使い、画面の比率が変わっても円がつぶれにくくしています。</p>
+      <p>Canvas のサイズを変えた後は、<code>CD3</code> を作り直してください。倍率はコンストラクターで計算され、後から自動更新されないためです。</p>
+    `);
+
+    section("engine", "5. Engineは何を担当するの？", `
+      <p><code>engine.js</code> はゲームを動かすための部品をまとめています。ここでいう Engine は「ルールを全部考える頭脳」ではありません。Canvas を消し、Display を順番に描き、入力状態を更新する土台です。</p>
+      <div class="flow">GameObject      物体のデータと当たり判定
+      ↓ addObject()
+Display         物体をまとめるレイヤー
+      ↓ addDisplay()
+Engine          レイヤーを重ねて何度も描く
+      ↑
+InputManager    マウスとキーの状態を記録</div>
+      <p>Engine は <code>onUpdate(fn)</code> でゲーム側の更新処理を登録できます。登録した関数には秒単位の <code>dt</code> と入力が渡されます。たとえば「右キーが押されたらプレイヤーを右へ動かす」というルールの中身は、<code>demo.html</code> や <code>dodge.js</code> が担当します。土台とゲームルールを分けることで、同じ Engine を別のゲームでも使えます。</p>
+      <pre>const canvas = document.getElementById("main");
+const engine = new GameEngine.Engine({ fps: 60, canvas });
+const layer = engine.createDisplay({
+  name: "background", width: 640, height: 360,
+  transparent: true, blend: "normal"
+});
+layer.addObject(new GameEngine.GameObject({ x: 100, y: 100 }));
+engine.start();</pre>
+      <p>最後に <code>engine.stop()</code> を呼べば、予約していた描画フレームを止められます。Canvas を渡さずに <code>start()</code> すると、描画先がないため例外になります。</p>
+    `);
+
+    section("object", "6. GameObject: ゲームの物体", `
+      <p><code>GameObject</code> はプレイヤー、敵、弾、箱など「画面に存在するもの」を表します。今の <code>draw()</code> は矩形を描き、<code>color</code> で色を変えられます。位置やサイズを持つ共通の物体として設計されています。</p>
+      <pre>const player = new GameEngine.GameObject({
+  tag: ["player"],
+  x: 100, y: 80,
+  width: 60, height: 40,
+  angle: 0,
+  visible: true
+});</pre>
+      <p>注意点は <code>x</code> と <code>y</code> が左上ではなく中心だということです。幅が60なら左端は <code>x - 30</code>、右端は <code>x + 30</code> です。描画、クリック判定、衝突判定がこの前提で計算されます。</p>
+      <table><thead><tr><th>メソッド</th><th>やさしい意味</th><th>使う場面</th></tr></thead><tbody>
+        <tr><td><code>copy(overrides)</code></td><td>同じ種類の新しい物体を作る</td><td>敵を何体も出す</td></tr>
+        <tr><td><code>move(dx, dy)</code></td><td>今いる場所から動かす</td><td>キー操作、速度処理</td></tr>
+        <tr><td><code>moveTo(x, y)</code></td><td>指定場所へ移す</td><td>ドラッグ、ワープ</td></tr>
+        <tr><td><code>rotateTo</code> / <code>rotateBy</code></td><td>角度を変える</td><td>向き、回転アニメーション</td></tr>
+        <tr><td><code>containsPoint</code></td><td>点が矩形の中か調べる</td><td>クリック選択</td></tr>
+        <tr><td><code>intersectsObject</code></td><td>二つの矩形が重なるか調べる</td><td>衝突判定</td></tr>
+        <tr><td><code>touchesDisplayEdge</code></td><td>レイヤーの端に触れたか調べる</td><td>画面外へ出たか</td></tr>
+      </tbody></table>
+      <p><code>copy</code> は元のタグ配列をコピーし、新しい ID の物体を作ります。さらに元の <code>onCopy</code> があれば、コピー直後にコピー先へ呼びます。元を設計図として使い、座標だけ変えた敵を量産できる理由はここにあります。</p>
+      <pre>const enemyPrototype = new GameEngine.GameObject({
+  tag: ["enemy"], width: 40, height: 40
+});
+enemyPrototype.onCopy = enemy => enemy.tag.push("alive");
+const enemy = enemyPrototype.copy({ x: 300, y: 120 });</pre>
+      <p>描画時は <code>visible</code> が false なら何もしません。true なら context の状態を <code>save</code> し、中心へ移動して角度を回し、中心基準で矩形を描き、<code>restore</code> します。<code>save/restore</code> があるので、ある物体の回転が次の物体へ漏れません。</p>
+    `);
+
+    section("display", "7. Display: 透明な紙を重ねる", `
+      <p><code>Display</code> はゲームオブジェクトをまとめるレイヤーです。背景、キャラクター、UI、エフェクトを別々に持つと、描く順番を管理しやすくなります。</p>
+      <pre>const background = engine.createDisplay({
+  name: "background",
+  width: 640, height: 360,
+  transparent: true,
+  blend: "normal"
+});
+background.addObject(player);</pre>
+      <p>Display は追加された順に描かれます。後から追加された Display が上です。だから <code>bg</code> の後に <code>ui</code> を追加すると、UI が背景の上へ描かれます。</p>
+      <ul><li><code>listObjects()</code>: 内部配列のコピーを返す</li><li><code>findByTag(tag)</code>: タグを持つ物体だけ探す</li><li><code>findByCondition(fn)</code>: 条件関数で探す</li><li><code>addObject(obj)</code>: 物体を追加する</li><li><code>addObjectFromPrototype(proto, overrides)</code>: コピーして追加する</li><li><code>addDrawable(fn)</code>: HUDなど任意のCanvas描画関数を登録する</li><li><code>hideObject(id)</code> / <code>showObject(id)</code>: 削除せず見た目だけ隠す</li><li><code>delete()</code>: Engine の Display 配列からこのレイヤーを削除する</li></ul>
+      <p><code>hideObject</code> はオブジェクトを消していません。再表示できます。一方 <code>removeFrom(display)</code> はオブジェクトそのものを配列から外します。</p>
+      <div class="warning"><code>pauseAll()</code> と <code>resumeAll()</code> は現在、<code>paused</code> というフラグを変えるだけです。Engine はそのフラグを自動では見ないため、ゲーム側の更新処理で <code>if (!display.paused)</code> を確認する必要があります。</div>
+    `);
+
+    section("input", "8. InputManager: 操作を状態に変える", `
+      <p>ブラウザのイベントは一瞬だけ届きます。<code>pointerdown</code> はクリックした瞬間に一度届き、キーイベントも押した瞬間・離した瞬間に届きます。ゲームでは「今も押されているか」を毎フレーム知りたいので、<code>InputManager</code> がイベントを状態へ変換します。</p>
+      <pre>const input = engine.input;
+if (input.mouse.justClicked) {
+  console.log(input.mouse.x, input.mouse.y);
+}
+if (input.isKeyPressed("ArrowRight")) {
+  player.move(4, 0);
+}</pre>
+      <p>マウス状態には <code>x</code>、<code>y</code>、<code>pressed</code>、<code>justClicked</code>、<code>lastClickTime</code> があります。押している間は <code>pressed</code> が true、クリックが起きたフレームだけ <code>justClicked</code> が true です。</p>
+      <p>キーは <code>Set</code> に保存します。押したら <code>keys.add(e.key)</code>、離したら <code>keys.delete(e.key)</code> です。だから <code>isKeyPressed("Shift")</code> のように確認できます。</p>
+      <p><code>Engine.start()</code> が最初のフレームで <code>attachTo(canvas)</code> を呼びます。pointer イベントは Canvas、キーボードイベントは window に登録します。<code>detach()</code> は以前のイベントを外すので、同じ入力が二重に数えられません。</p>
+      <p>描画の最後に <code>input.update()</code> が呼ばれ、<code>justClicked</code> を false に戻します。この順番により、そのフレームのゲーム処理はクリックを読めます。</p>
+      <div class="warning">マウス座標は Canvas の表示サイズと内部サイズの比率で補正されます。ただし複雑な CSS 変形や複数 Canvas の座標変換は、アプリ側で確認が必要です。</div>
+    `);
+
+    section("loop", "9. ゲームループ: 同じ仕事を何度もする", `
+      <p>ゲーム画面は一度描いて終わりではありません。毎フレーム、入力を見て状態を変更し、古い絵を消して新しい絵を描きます。<code>Engine</code> は <code>requestAnimationFrame</code> を使ってブラウザの描画タイミングに合わせます。</p>
+      <div class="flow">ブラウザが次の描画時刻を知らせる
+      ↓
+Engine の経過時間を確認
+      ↓ fps 間隔に達していなければ待つ
+      ↓ _renderFrame()
+         1. メイン Canvas を消す
+         2. Display を一つずつ一時 Canvas に描く
+         3. レイヤー効果を合成する
+         4. メイン Canvas に貼る
+         5. justClicked を消す
+      ↓ また次の描画時刻を待つ</div>
+      <p><code>fps: 30</code> なら目標間隔は約33.3ミリ秒です。ブラウザの callback 自体はもっと頻繁に呼ばれることがありますが、間隔未満なら描画を飛ばします。これが FPS 制限です。</p>
+      <p>ゲームルールの中身は Engine の中にはありませんが、<code>onUpdate(fn)</code> で Engine のタイミングへ登録できます。<code>demo.html</code> は従来どおり別の <code>requestAnimationFrame</code> で <code>updateControls()</code> を呼び、回避ゲームの <code>dodge.js</code> は <code>onUpdate</code> を使います。どちらも Engine がゲーム固有のルールを決めない設計です。</p>
+    `);
+
+    section("demo", "10. demo.htmlを上から読む", `
+      <p>ここまでの部品を使った具体例が <a href="./demo.html">demo.html</a> です。640 x 360 の Canvas に Engine を作り、背景レイヤーと UI レイヤーを登録します。</p>
+      <pre>const E = new GameEngine.Engine({ fps: 30, canvas });
+const d1 = E.createDisplay({
+  name: "bg", width: 640, height: 360,
+  transparent: true, blend: "normal"
+});
+const d2 = E.createDisplay({
+  name: "ui", width: 640, height: 360,
+  transparent: true, blend: "blur"
+});</pre>
+      <p>次にプロトタイプを作り、座標を変えたコピーを3つの場所へ追加します。<code>d2</code> の物体は後から描かれるため上のレイヤーにあります。</p>
+      <pre>const proto = new GameEngine.GameObject({
+  tag: ["box"], x: 100, y: 80,
+  width: 60, height: 40
+});
+proto.onCopy = copy => copy.tag.push("copied");
+d1.addObject(proto.copy({ x: 120, y: 180 }));
+d1.addObject(proto.copy({ x: 200, y: 100 }));
+d2.addObject(proto.copy({ x: 180, y: 150 }));</pre>
+      <h3>クリックされた物体を探す</h3>
+      <p><code>pickTopObjectAt(x, y)</code> は、表示レイヤーを後ろから調べ、各レイヤーのオブジェクトも後ろから調べます。Canvas で上に見えている物体を先に見つけるためです。各物体の <code>containsPoint</code> でクリック位置が矩形内かを判定します。</p>
+      <h3>ドラッグする</h3>
+      <p>クリックした瞬間に <code>selected</code> を保存します。同時に、クリック位置から物体の中心までの差を <code>dragOffset</code> に保存します。移動中は <code>selected.moveTo(mouse.x - dragOffset.x, mouse.y - dragOffset.y)</code> とするので、クリックした場所がずれません。</p>
+      <h3>キーで動かす</h3>
+      <p>選択中の物体があれば、矢印キーに応じて <code>dx</code> と <code>dy</code> を作り、<code>move(dx, dy)</code> を呼びます。Shift は速度を4倍、Control は4分の1にします。これは Engine の機能ではなく、デモが決めたゲームルールです。</p>
+      <p>画面左上の情報表示は <code>innerHTML</code> で作っています。これはデバッグ用です。実際のゲームでは、状態表示用の要素を作り、必要な部分だけ更新すると読みやすくなります。</p>
+    `);
+
+    section("build", "11. 1から同じものを作る順番", `
+      <p>いきなり Engine 全部を作ると、Canvas の問題なのか入力の問題なのか分からなくなります。次の小さな段階で作ると、各段階の成功を確認できます。</p>
+      <ol><li>HTML に <code>&lt;canvas width="640" height="360"&gt;</code> を置く。</li><li><code>getContext("2d")</code> を取得し、<code>fillRect</code> で赤い四角を出す。</li><li>四角、円、文字、画像、線、消去を <code>CD1</code> のメソッドにまとめる。</li><li>論理サイズと実サイズを分けるなら、各描画値を <code>CD3</code> の倍率で変換する。</li><li>位置・サイズ・色などを <code>GameObject</code> に持たせ、<code>draw</code> を移す。</li><li>複数の物体を配列に入れる <code>Display</code> を作る。</li><li>Display を順番に描く <code>Engine._renderFrame</code> を作る。</li><li>pointer と keyboard を <code>InputManager</code> の状態へ保存する。</li><li>requestAnimationFrame と FPS 間隔を使った <code>start</code> / <code>stop</code> を作る。</li><li>最後に demo のように入力とゲームルールを接続する。</li></ol>
+      <p>この順番の理由は、後ろの部品が前の部品に依存するからです。Display は GameObject の <code>draw</code> を使い、Engine は Display を使い、デモは Engine と入力を使います。下から積むと、エラーの場所を一つの層に絞れます。</p>
+      <pre>// 最初に目指す完成形
+const object = new GameEngine.GameObject({ x: 100, y: 100 });
+const display = engine.createDisplay({ width: 640, height: 360 });
+display.addObject(object);
+engine.start();</pre>
+      <p>この四角が見えたら、次に移動、次にクリック選択、次に衝突判定、最後に画像や音を追加します。最初から完璧なゲームを作るのではなく、見える結果を一つずつ増やすのがコツです。</p>
+    `);
+
+    section("limits", "12. 現在のコードで気をつけること", `
+      <p>このページは理想的な仕様書ではなく、今あるコードを正しく読み解くための説明です。現状には次の制限があります。</p>
+      <ul><li><code>GameDealer</code> はまだ <code>canvasDealer</code> を保持するだけで、描画メソッドを持ちません。</li><li><code>GameObject.draw()</code> は色を変えられる矩形描画です。画像や種類ごとの見た目はまだありません。</li><li><code>programs</code> は保存されますが、Engine は実行しません。</li><li><code>pauseAll()</code> はフラグを変えるだけで、自動停止しません。</li><li>Display 用の Canvas は再利用されますが、レイヤーが多いと負荷が高くなります。</li><li><code>blend</code> は <code>normal</code>、<code>blur</code>、<code>transparent</code>、<code>fill</code> の簡易効果です。</li><li>入力座標は CSS 表示サイズを考慮して補正されますが、複雑な CSS 変形は対象外です。</li><li><code>scriptdemo.js</code> は Engine を使いますが、DOM 作成は <code>Deal</code> ではなく通常の DOM API です。</li></ul>
+      <p>まずは <a href="./index.html">index.html</a> で青い四角が出ることを確認し、その後 <a href="./demo.html">demo.html</a> でドラッグとキー操作、<a href="./dodge.html">dodge.html</a> で回避ゲームを試してください。コードを変更したら、どの層の責任かを考えると、修正場所を選びやすくなります。</p>
+    `);
+
+    new Deal(article).CE("footer", {
+      html: '対応するコード: <a href="./README.md">website/README.md</a> / <a href="./script.js">script.js</a> / <a href="./canvasDealer.js">canvasDealer.js</a> / <a href="./engine.js">engine.js</a>'
+    });
+  </script>
+</body>
+</html>

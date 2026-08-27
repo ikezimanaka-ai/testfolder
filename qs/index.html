@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <head>
+    <title></title>
+    <style>
+      body {
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+      }
+      main {
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main></main>
+    <script>
+      const datatime = Math.random() * 100;
+
+      const script1 = document.createElement("script");
+      script1.src = `./domDeal.js?v=${datatime}`;
+      script1.onload = () => {
+        console.log("domDeal.js loaded");
+        console.log("startDealerLoading")
+        const script2 = document.createElement("script");
+        script2.src = `./dealer.js?v=${datatime}`;
+        script2.onload = () => console.log("dealer.js loaded");
+        script2.onerror = () => console.error("Failed to load dealer.js");
+        document.body.appendChild(script2);
+      };
+      script1.onerror = () => console.error("Failed to load domDeal.js");
+      document.body.appendChild(script1);
+    </script>
+  </body>
+</html>

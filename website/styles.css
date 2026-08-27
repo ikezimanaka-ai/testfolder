@@ -1,0 +1,22 @@
+canvas {
+    border: 1px solid black;
+}
+
+.editor-link {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  padding: 10px 14px;
+  border-radius: 5px;
+  color: white;
+  background: #263b45;
+  font: 14px sans-serif;
+  text-decoration: none;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}

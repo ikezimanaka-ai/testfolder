@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Engine Demo</title></head>
+<body>
+<canvas id="main" width="640" height="360" style="border:1px solid #ccc"></canvas>
+<script src="engine.js"></script>
+<style>
+  #info { position: absolute; left: 10px; top: 10px; background: rgba(255,255,255,0.9); padding:8px; font-family:monospace; font-size:12px; }
+  canvas { display:block; margin:0 auto; }
+</style>
+<script>
+  const canvas = document.getElementById('main');
+  const E = new GameEngine.Engine({fps:30, canvas});
+  const d1 = E.createDisplay({name:'bg', width:640, height:360, transparent:true, blend:'normal'});
+  const d2 = E.createDisplay({name:'ui', width:640, height:360, transparent:true, blend:'blur'});
+
+  // prototype object
+  const proto = new GameEngine.GameObject({tag:['box'], x:100,y:80,width:60,height:40});
+  proto.onCopy = (c)=>{ c.tag.push('copied'); };
+  d1.addObject(proto.copy({x:120,y:180}));
+  d1.addObject(proto.copy({x:200,y:100}));
+  d2.addObject(proto.copy({x:180,y:150}));
+
+  E.start();
+
+  // UI overlay for input info
+  const info = document.createElement('div'); info.id = 'info'; document.body.appendChild(info);
+
+  let selected = null;
+  let dragging = false; let dragOffset = {x:0,y:0};
+
+  function pickTopObjectAt(x,y){
+    // check displays from top to bottom
+    for(let i=E.displays.length-1;i>=0;i--){ const ds = E.displays[i]; const objs = ds.listObjects(); for(let j=objs.length-1;j>=0;j--){ const o = objs[j]; if(o.containsPoint(x,y)) return {obj:o, display:ds}; } }
+    return null;
+  }
+
+  function updateControls(){
+    const input = E.input;
+    // handle justClicked -> pick
+    if(input.mouse.justClicked){ const found = pickTopObjectAt(input.mouse.x, input.mouse.y); if(found){ selected = found.obj; dragging = true; dragOffset.x = input.mouse.x - selected.x; dragOffset.y = input.mouse.y - selected.y; } else { selected = null; } }
+    // dragging
+    if(dragging && input.mouse.pressed && selected){ selected.moveTo(input.mouse.x - dragOffset.x, input.mouse.y - dragOffset.y); }
+    if(dragging && !input.mouse.pressed){ dragging = false; }
+
+    // arrow keys movement
+    if(selected){
+      let speed = 4;
+      if(input.isKeyPressed('Shift')) speed *= 4;
+      if(input.isKeyPressed('Control')) speed *= 0.25;
+      let dx=0, dy=0;
+      if(input.isKeyPressed('ArrowLeft')) dx -= speed;
+      if(input.isKeyPressed('ArrowRight')) dx += speed;
+      if(input.isKeyPressed('ArrowUp')) dy -= speed;
+      if(input.isKeyPressed('ArrowDown')) dy += speed;
+      if(dx!==0 || dy!==0) selected.move(dx,dy);
+    }
+  }
+
+  function renderInfo(){
+    const i = E.input;
+    const keys = Array.from(i.keys || []);
+    info.innerHTML = `mouse: (${Math.round(i.mouse.x)},${Math.round(i.mouse.y)}) pressed:${i.mouse.pressed} justClicked:${i.mouse.justClicked} timeSinceLastClick:${Math.round(i.timeSinceLastClick())}ms<br>` +
+      `keys: ${keys.join(', ')}<br>` +
+      `selected: ${selected ? ('id='+selected.id+', tags='+selected.tag.join('|') ): 'none'}<br>` +
+      `dragging: ${dragging}`;
+  }
+
+  function loop(){ updateControls(); renderInfo(); requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
+
+  console.log('Engine demo running — open in browser. Use arrow keys, Shift, Control, and drag objects.');
+</script>
+<p>Open this file in a browser to see the demo.</p>
+</body>
+</html>

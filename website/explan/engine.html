@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Engineを読む</title><style>body{margin:0;background:#eef3f0;color:#263238;font:1rem/1.8 Georgia,"Yu Mincho",serif}main{width:min(850px,calc(100% - 32px));margin:32px auto}section{padding:22px;margin:18px 0;background:#fffdf9;border-left:5px solid #b85c38}h1{color:#126782}canvas{display:block;max-width:100%;border:1px solid #263238;background:#fff}code,pre{font-family:monospace}pre{padding:16px;overflow:auto;background:#202c32;color:#edf5f2}.note{padding:12px;background:#f7e7de}</style></head>
+<body><div id="app"></div><script src="../../qs/domDeal.js"></script><script src="../engine.js"></script><script>
+const root = new Deal(document.getElementById("app"));
+const main = root.CE("main");
+new Deal(main).CE("h1", { text: "Engineを動かす: 物体・レイヤー・入力" });
+new Deal(main).CE("p", { html: '<code>Engine</code> はルールを全部自動実行するものではありません。Canvasを消し、Displayを描き、入力状態を更新する土台です。' });
+const canvas = new Deal(main).CE("canvas", { attrs: { id: "game", width: "640", height: "360" } });
+const status = new Deal(main).CE("p", { id: "status", text: "準備中" });
+const controls = new Deal(main).CE("section");
+new Deal(controls).CE("button", { id: "start", text: "開始" });
+new Deal(controls).CE("button", { id: "stop", text: "停止" });
+const engine = new GameEngine.Engine({ fps: 30, canvas });
+const layer = engine.createDisplay({ name: "objects", width: 640, height: 360, transparent: true, blend: "normal" });
+const box = new GameEngine.GameObject({ x: 120, y: 160, width: 70, height: 50, tag: ["box"] });
+layer.addObject(box);
+let running = false; let animation;
+function update() { if (!running) return; if (engine.input.isKeyPressed("ArrowRight")) box.move(3, 0); if (engine.input.isKeyPressed("ArrowLeft")) box.move(-3, 0); status.textContent = `x=${Math.round(box.x)} / クリック: ${engine.input.mouse.justClicked ? "あり" : "なし"}`; animation = requestAnimationFrame(update); }
+document.getElementById("start").addEventListener("click", () => { if (running) return; running = true; engine.start(); update(); });
+document.getElementById("stop").addEventListener("click", () => { running = false; engine.stop(); cancelAnimationFrame(animation); status.textContent = "停止中"; });
+new Deal(main).CE("section", { html: '<h2>読むポイント</h2><p><code>box</code> はデータ、<code>layer</code> は置き場所、<code>engine</code> は描画の繰り返しです。開始後に矢印キーを押すと、別の更新処理が <code>box.move()</code> を呼びます。Engineだけでは物体は動きません。</p><pre>if (engine.input.isKeyPressed("ArrowRight")) {\n  box.move(3, 0);\n}</pre>' });
+new Deal(main).CE("p", { html: '<a href="./index.html">← 補助教材一覧</a> / <a href="../guide.html#engine">総合ガイドのEngine章</a>' });
+</script></body></html>
