@@ -241,11 +241,16 @@ console.log(box.containsPoint(100, 100)); // 中心なので true</pre>
         <h3>レイヤーを分ける具体的な意味</h3>
         <p>背景と UI を一つの配列に混ぜると、UI を必ず最後に描くためのルールが散らばります。Display を分ければ、<code>background</code>、<code>characters</code>、<code>ui</code> の順に登録するだけで、重なり順を読めます。</p>
         <p><code>findByTag("enemy")</code> は、全オブジェクトを直接調べる代わりに種類で絞り込む方法です。<code>findByCondition</code> なら「画面の外に出たもの」など任意の条件で探せます。返る配列はコピーなので、検索結果の配列を変更しても Display の配列そのものは壊れません。</p>
+        <p>さらに <code>isCollidingWith("enemy", nextX, nextY)</code> を使うと、「この位置に移動したときに敵と重なるか」を簡単に確認できます。移動前に壁や敵との接触を省いて、衝突が起きるなら動かさない、という判定にそのまま使えます。</p>
         <pre>const enemies = layer.findByTag("enemy");
 for (const enemy of enemies) {
   if (enemy.touchesDisplayEdge(layer)) {
     enemy.moveTo(20, enemy.y);
   }
+}
+
+if (player.isCollidingWith("enemy", player.x + 12, player.y)) {
+  // 右へ進もうとした瞬間、敵と重なるなら反対に戻す
 }</pre>
       `,
       input: `
@@ -546,7 +551,7 @@ engine.start();</pre>
     `);
 
     new Deal(article).CE("footer", {
-      html: '対応するコード: <a href="./README.md">website/README.md</a> / <a href="./script.js">script.js</a> / <a href="./canvasDealer.js">canvasDealer.js</a> / <a href="./engine.js">engine.js</a>'
+      html: '<p>わかりにくい場合：<a href="./explan.html" target="_blank",rel="noopener">もっとわかりにくいかもしれない説明</a></p><br>対応するコード: <a href="./README.md">website/README.md</a> / <a href="./script.js">script.js</a> / <a href="./canvasDealer.js">canvasDealer.js</a> / <a href="./engine.js">engine.js</a>'
     });
   </script>
 </body>

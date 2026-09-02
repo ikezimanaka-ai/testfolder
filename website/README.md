@@ -221,6 +221,8 @@ const object = new GameEngine.GameObject({
 | `containsPoint(px, py)` | 複合コライダーのいずれかに点が含まれるか判定 |
 | `intersectsObject(other)` | 複合コライダー同士の交差判定。矩形・円・多角形に対応 |
 | `touchesTag(tag, display)` | 指定タグのObjectに触れているか判定 |
+| `isCollidingWith(tag, x, y, options, display)` | 指定タグと位置を仮想的な衝突判定として扱い、そこへ移動したときに重なるか調べる |
+| `isCollusion(tag, x, y, options, display)` | `isCollidingWith` の互換エイリアス。既存コードとの互換性を優先したいときに使う |
 | `touchesColor(color, tolerance, display)` | 指定RGB色のObjectに触れているか判定。R/G/B全てが許容差以内 |
 | `isColorWithinTolerance(color, tolerance)` | 自分の色が指定色から許容差以内か判定 |
 | `setImage(image)` / `loadImage(url)` | Image要素・URL画像をObjectへ設定 |

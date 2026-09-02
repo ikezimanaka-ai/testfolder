@@ -48,6 +48,8 @@ class GameObject {
     this.angle = spec.angle ?? 0;
     this.width = spec.width ?? (spec.radius ? spec.radius * 2 : 10);
     this.height = spec.height ?? (spec.radius ? spec.radius * 2 : 10);
+    this._baseWidth = this.width;
+    this._baseHeight = this.height;
     this.color = spec.color || "rgba(0,150,200,0.9)";
     this.image = spec.image || null;
     this.colliders =
@@ -140,12 +142,94 @@ class GameObject {
     return Object.prototype.hasOwnProperty.call(__privateValues.get(this), name);
   }
 
+  changePrivate(name, delta = 0) {
+    if (typeof name !== "string" || !name) throw new TypeError("Private variable name must be a non-empty string");
+    const current = Number(this.getPrivate(name, 0)) || 0;
+    const next = current + Number(delta || 0);
+    this.setPrivate(name, next);
+    return next;
+  }
+
+  setScale(scale = 1) {
+    const ratio = Number(scale);
+    if (!Number.isFinite(ratio) || ratio <= 0) throw new TypeError("Scale must be a positive finite number");
+    const factor = ratio <= 1 ? ratio : ratio <= 100 ? ratio / 100 : ratio;
+    const baseWidth = this._baseWidth ?? this.width;
+    const baseHeight = this._baseHeight ?? this.height;
+    this.width = baseWidth * factor;
+    this.height = baseHeight * factor;
+    for (const collider of this.colliders) {
+      if (collider.type === "rect") {
+        collider.width = (collider.width ?? baseWidth) * factor;
+        collider.height = (collider.height ?? baseHeight) * factor;
+      } else if (collider.type === "circle") {
+        collider.radius = (collider.radius ?? Math.min(baseWidth, baseHeight) / 2) * factor;
+      } else if (collider.type === "polygon" && Array.isArray(collider.points)) {
+        collider.points = collider.points.map((point) => ({
+          x: (point.x ?? 0) * factor,
+          y: (point.y ?? 0) * factor,
+        }));
+      }
+    }
+    return this;
+  }
+
+  get hidden() {
+    return !this.visible;
+  }
+
+  set hidden(value) {
+    this.visible = !Boolean(value);
+  }
+
   _debugPrivateSnapshot() {
     return Object.assign({}, __privateValues.get(this));
   }
 
   touchesTag(tag, display = this._display) {
     return !!display && display.listObjects().some(object => object !== this && object.tag.includes(tag) && this.intersectsObject(object));
+  }
+
+  isCollidingWith(tagOrSpec, x = this.x, y = this.y, options = {}, display = this._display) {
+    if (tagOrSpec && typeof tagOrSpec === "object" && !Array.isArray(tagOrSpec)) {
+      const spec = tagOrSpec;
+      return this.isCollidingWith(
+        spec.tag,
+        spec.x ?? x ?? this.x,
+        spec.y ?? y ?? this.y,
+        {
+          width: spec.width,
+          height: spec.height,
+          angle: spec.angle,
+          colliders: spec.colliders,
+          ...options,
+        },
+        spec.display ?? display,
+      );
+    }
+    if (!display) return false;
+    const probe = this.copy({
+      x: Number(x ?? this.x) || this.x,
+      y: Number(y ?? this.y) || this.y,
+      width: Number(options.width ?? this.width) || this.width,
+      height: Number(options.height ?? this.height) || this.height,
+      angle: Number(options.angle ?? this.angle) || this.angle,
+      colliders: Array.isArray(options.colliders) && options.colliders.length
+        ? options.colliders.map((c) => Object.assign({}, c, {
+            points: c.points ? c.points.map((p) => ({ x: p.x, y: p.y })) : undefined,
+          }))
+        : undefined,
+    });
+    const tags = Array.isArray(tagOrSpec) ? tagOrSpec : tagOrSpec ? [tagOrSpec] : [];
+    return display.listObjects().some((object) => {
+      if (object === this) return false;
+      if (tags.length > 0 && !tags.some((value) => object.tag.includes(value))) return false;
+      return probe.intersectsObject(object);
+    });
+  }
+
+  isCollusion(tagOrSpec, x = this.x, y = this.y, options = {}, display = this._display) {
+    return this.isCollidingWith(tagOrSpec, x, y, options, display);
   }
 
   touchesColor(color, tolerance = 0, display = this._display) {
@@ -679,13 +763,18 @@ class Engine {
     );
     scope.INPUT = this.public.INPUT;
     for (const source of object.initialPrograms) {
+      const program = String(source || '').replace(/\bthis\./g, 'self.');
       new Function(
         "self",
         "display",
         "engine",
         "INPUT",
         "scope",
-        `with (scope) { ${source}\n }`,
+        `
+          return (function () {
+            with (scope) { ${program}\n }
+          }).call(self);
+        `,
       )(object, display, this, this.public.INPUT, scope);
     }
     object._initialProgramsRun = true;
@@ -704,11 +793,17 @@ class Engine {
     );
     scope.INPUT = this.public.INPUT;
     for (const source of this.startupPrograms) {
-      new Function("engine", "INPUT", "scope", `with (scope) { ${source}\n }`)(
-        this,
-        this.public.INPUT,
-        scope,
-      );
+      const program = String(source || '').replace(/\bthis\./g, 'engine.');
+      new Function(
+        "engine",
+        "INPUT",
+        "scope",
+        `
+          return (function () {
+            with (scope) { ${program}\n }
+          }).call(engine);
+        `,
+      )(this, this.public.INPUT, scope);
     }
   }
 

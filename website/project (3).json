@@ -1,0 +1,102 @@
+{
+  "engine": {
+    "initial": "const main = engine.createDisplay({ name: 'main', width: 400, height: 300, transparent: false });\r\nmain.addObjectById('player');\r\nmain.EnemyCoolDown = 0;",
+    "frame": "main.EnemyCoolDown -= dt;\r\nif(main.EnemyCoolDown <= 0){\r\n    main.EnemyCoolDown = Math.random() * 0.5 + 0.2;\r\n    main.addObjectById('enemy', { y:Math.floor(Math.random() * 300) })\r\n}"
+  },
+  "templates": [
+    {
+      "info": {
+        "id": "player",
+        "tag": [
+          "object"
+        ],
+        "x": 120,
+        "y": 100,
+        "angle": 0,
+        "width": 30,
+        "height": 30,
+        "color": "#ef8354",
+        "image": null,
+        "colliders": [
+          {
+            "type": "rect",
+            "width": 30,
+            "height": 30
+          }
+        ],
+        "initialPrograms": [
+          "var PlayerSpeed = 150;\r\nself.setPrivate(\"cooldown\",0)\r\nself.setPrivate(\"muteki_kiso\",2)\r\nself.setPrivate(\"muteki_pika\",0.1)"
+        ],
+        "programs": [
+          "if (INPUT.key('Shift')) PlayerSpeed = 75;\r\nelse if (INPUT.key('Control')) PlayerSpeed = 250;\r\nelse PlayerSpeed = 150;\r\nif (INPUT.key('ArrowRight')||INPUT.key('d')) self.Xmove(PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowLeft')||INPUT.key('a')) self.Xmove(-PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowUp')||INPUT.key('w')) self.Ymove(PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowDown')||INPUT.key('s')) self.Ymove(-PlayerSpeed * dt, 0);\r\nif (INPUT.key('Space') && self.getPrivate(\"cooldown\", 0) <= 0){\r\n    self.addObjectById(\"bled\",{x:self.x,y:self.y});\r\n    self.setPrivate(\"cooldown\",0.1)\r\n}\r\nself.setPrivate(\"cooldown\",self.getPrivate(\"cooldown\",0)-dt);\r\nif(self.touchesTag(\"enemy\")){\r\n    self.setPrivate(\"muteki\",self.getPrivate(\"muteki_kiso\",0));\r\n}\r\nself.setPrivate(\"muteki\",self.getPrivate(\"muteki\",0)-dt);\r\nif(self.getPrivate(\"muteki\",0) >= 0){\r\n    if(self.getPrivate(\"muteki_pika\",0) >= 0){\r\n        self.hidden = true;\r\n    }else if(self.getPrivate(\"muteki_pika\") >= -0.1){\r\n        self.setPrivate(\"muteki_pika\",0.1);\r\n        self.hidden = false;\r\n    }\r\n}\r\nself.setPrivate(\"muteki_pika\",self.getPrivate(\"muteki_pika\",0)-dt)"
+        ]
+      },
+      "initialPrograms": [
+        "var PlayerSpeed = 150;\r\nself.setPrivate(\"cooldown\",0)\r\nself.setPrivate(\"muteki_kiso\",2)\r\nself.setPrivate(\"muteki_pika\",0.1)"
+      ],
+      "programs": [
+        "if (INPUT.key('Shift')) PlayerSpeed = 75;\r\nelse if (INPUT.key('Control')) PlayerSpeed = 250;\r\nelse PlayerSpeed = 150;\r\nif (INPUT.key('ArrowRight')||INPUT.key('d')) self.Xmove(PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowLeft')||INPUT.key('a')) self.Xmove(-PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowUp')||INPUT.key('w')) self.Ymove(PlayerSpeed * dt, 0);\r\nif (INPUT.key('ArrowDown')||INPUT.key('s')) self.Ymove(-PlayerSpeed * dt, 0);\r\nif (INPUT.key('Space') && self.getPrivate(\"cooldown\", 0) <= 0){\r\n    self.addObjectById(\"bled\",{x:self.x,y:self.y});\r\n    self.setPrivate(\"cooldown\",0.1)\r\n}\r\nself.setPrivate(\"cooldown\",self.getPrivate(\"cooldown\",0)-dt);\r\nif(self.touchesTag(\"enemy\")){\r\n    self.setPrivate(\"muteki\",self.getPrivate(\"muteki_kiso\",0));\r\n}\r\nself.setPrivate(\"muteki\",self.getPrivate(\"muteki\",0)-dt);\r\nif(self.getPrivate(\"muteki\",0) >= 0){\r\n    if(self.getPrivate(\"muteki_pika\",0) >= 0){\r\n        self.hidden = true;\r\n    }else if(self.getPrivate(\"muteki_pika\") >= -0.1){\r\n        self.setPrivate(\"muteki_pika\",0.1);\r\n        self.hidden = false;\r\n    }\r\n}\r\nself.setPrivate(\"muteki_pika\",self.getPrivate(\"muteki_pika\",0)-dt)"
+      ]
+    },
+    {
+      "info": {
+        "id": "bled",
+        "tag": [
+          "object"
+        ],
+        "x": 120,
+        "y": 100,
+        "angle": 0,
+        "width": 20,
+        "height": 10,
+        "color": "#ff0000",
+        "image": null,
+        "colliders": [
+          {
+            "type": "rect",
+            "width": 20,
+            "height": 10
+          }
+        ],
+        "initialPrograms": [],
+        "programs": [
+          "self.Xmove(400 * dt, 0)\r\nif (self.x > 420) self.remove();"
+        ]
+      },
+      "initialPrograms": [],
+      "programs": [
+        "self.Xmove(400 * dt, 0)\r\nif (self.x > 420) self.remove();"
+      ]
+    },
+    {
+      "info": {
+        "id": "enemy",
+        "tag": [
+          "enemy"
+        ],
+        "x": 420,
+        "y": 100,
+        "angle": 0,
+        "width": 50,
+        "height": 50,
+        "color": "#00e1ff",
+        "image": null,
+        "colliders": [
+          {
+            "type": "rect",
+            "width": 50,
+            "height": 50
+          }
+        ],
+        "initialPrograms": [],
+        "programs": [
+          "self.Xmove(-300 * dt, 0);\r\nif (self.x < -25) self.remove();"
+        ]
+      },
+      "initialPrograms": [],
+      "programs": [
+        "self.Xmove(-300 * dt, 0);\r\nif (self.x < -25) self.remove();"
+      ]
+    }
+  ]
+}
