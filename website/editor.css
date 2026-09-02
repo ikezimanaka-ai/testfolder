@@ -36,7 +36,7 @@ textarea { min-height:180px; resize:vertical; font:13px/1.6 'DM Mono', monospace
 .topbar h2 { margin:0; font-size:20px; }
 .topbar p { margin:5px 0 0; color:var(--muted); font-size:12px; }
 .help-link { display:inline-block; margin-top:8px; color:var(--cyan); font-size:12px; }
-.help-link { display:inline-block; margin-top:8px; color:var(--cyan); font-size:12px; }
+.guide-link { display:inline-block; margin-top:8px; color:var(--cyan); font-size:12px; }
 .primary { border:0; border-radius:5px; padding:10px 14px; color:#1b1713; background:var(--accent); font-weight:700; }
 .toolbar { display:flex; flex-wrap:wrap; gap:7px; }
 .toolbar button, #clear-program-error { border:1px solid var(--line); border-radius:5px; padding:9px 11px; color:var(--ink); background:var(--panel); }
