@@ -27,7 +27,7 @@
 	const getSvgTab = (object = selected) => { const svg = object?.svg || defaultSvg(); return svg.tabs.find((tab) => tab.id === svg.activeTab) || svg.tabs[0]; };
 	function ensureSvgEditor() {
 		if (svgEditorReady) return svgEditorReady;
-		svgEditorReady = import('./editor/Editor.js').then(({ default: Editor }) => {
+		svgEditorReady = import('./Editor.js').then(({ default: Editor }) => {
 			svgEditor = new Editor($('svg-editor-host'));
 			svgEditor.setConfig({
 				allowInitialUserOverride: true,
