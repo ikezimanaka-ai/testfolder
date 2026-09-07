@@ -44,20 +44,6 @@
   const engineInitialFallback = $('#engine-initial-program');
   const engineFrameFallback = $('#engine-frame-program');
 
-  function syncObjectSettingUi() {
-    const kind = $('#image-kind').value;
-    $('#image-file-field').hidden = kind !== 'image';
-    $('#csv-file-field').hidden = kind !== 'csv';
-  }
-  function syncSelectedObjectSummary() {
-    const summary = $('#selected-object-summary');
-    if (!selected) { summary.hidden = true; return; }
-    const tag = $('#tag').value.split(',').map(value => value.trim()).find(Boolean) || 'Object';
-    $('#selected-object-name').textContent = tag;
-    $('#selected-object-id').textContent = `ID: ${selected.id}`;
-    summary.hidden = false;
-  }
-
   function getProgram() { return selected && programEditor ? programEditor.getValue() : programFallback.value; }
   function setProgram(value) { if (programEditor && selected) { const model = programModels.get(selected.id) || window.monaco.editor.createModel(value || '', 'javascript'); programModels.set(selected.id, model); programEditor.setModel(model); if (model.getValue() !== (value || '')) model.setValue(value || ''); } else programFallback.value = value || ''; }
   function getInitialProgram() { return selected && initialProgramEditor ? initialProgramEditor.getValue() : initialProgramFallback.value; }
@@ -96,13 +82,12 @@
     const template = new GameObject(spec); template._imageElement = source?._imageElement || null; template._csvPoints = source?._csvPoints ? source._csvPoints.map(point => ({ ...point })) : null; templates.push(template); engine.registerTemplate(template); selectTemplate(template); renderObjectList();
   }
   function selectTemplate(template) {
-    selected = template; $('.engine-settings').hidden = true; $('#empty-state').hidden = !!template; form.hidden = !template;
-    if (!template) { $('#selected-object-summary').hidden = true; return; }
+    selected = template; $('.engine-settings').hidden = true; $('#empty-state').hidden = !!template; form.hidden = !template; if (!template) return;
     if (programEditor) { if (!programModels.has(template.id)) programModels.set(template.id, window.monaco.editor.createModel(template.programs[0] || '', 'javascript')); if (!initialProgramModels.has(template.id)) initialProgramModels.set(template.id, window.monaco.editor.createModel(template.initialPrograms[0] || '', 'javascript')); }
-    $('#object-id').value = template.id; $('#tag').value = template.tag.join(', '); $('#x').value = template.x; $('#y').value = template.y; $('#width').value = template.width; $('#height').value = template.height; $('#color').value = template.color.startsWith('#') ? template.color : '#ef8354'; $('#image-kind').value = template.image?.kind || 'rectangle'; syncObjectSettingUi(); syncSelectedObjectSummary(); setInitialProgram(template.initialPrograms[0] || ''); setProgram(template.programs[0] || ''); renderObjectList();
+    $('#object-id').value = template.id; $('#tag').value = template.tag.join(', '); $('#x').value = template.x; $('#y').value = template.y; $('#width').value = template.width; $('#height').value = template.height; $('#color').value = template.color.startsWith('#') ? template.color : '#ef8354'; $('#image-kind').value = template.image?.kind || 'rectangle'; setInitialProgram(template.initialPrograms[0] || ''); setProgram(template.programs[0] || ''); renderObjectList();
   }
   function selectEngine() {
-    selected = null; $('#selected-object-summary').hidden = true; form.hidden = true; $('#empty-state').hidden = true; $('.engine-settings').hidden = false; renderObjectList();
+    selected = null; form.hidden = true; $('#empty-state').hidden = true; $('.engine-settings').hidden = false; renderObjectList();
   }
   function syncEnginePrograms() {
     const initial = getEngineInitialProgram();
@@ -126,7 +111,7 @@
     if (!nextId || (nextId !== selected.id && templates.some(object => object.id === nextId))) { $('#program-error').textContent = 'IDは空欄にできず、重複もできません。'; $('#object-id').value = selected.id; return; }
     if (nextId !== selected.id) { const oldId = selected.id; engine.unregisterTemplate(oldId); selected.setId(nextId); engine.registerTemplate(selected); if (programModels.has(oldId)) { programModels.set(nextId, programModels.get(oldId)); programModels.delete(oldId); } if (initialProgramModels.has(oldId)) { initialProgramModels.set(nextId, initialProgramModels.get(oldId)); initialProgramModels.delete(oldId); } }
     selected.tag = $('#tag').value.split(',').map(value => value.trim()).filter(Boolean); selected.x = Number($('#x').value) || 0; selected.y = Number($('#y').value) || 0; selected.width = Number($('#width').value) || 10; selected.height = Number($('#height').value) || 10; selected.color = $('#color').value; selected.initialPrograms = getInitialProgram() ? [getInitialProgram()] : []; selected.programs = getProgram() ? [getProgram()] : [];
-    const kind = $('#image-kind').value; if (kind === 'circle') selected.colliders = [{ type: 'circle', radius: Math.min(selected.width, selected.height) / 2 }]; else if (kind === 'csv' && selected._csvPoints?.length) selected.colliders = [{ type: 'polygon', points: selected._csvPoints }]; else selected.colliders = [{ type: 'rect', width: selected.width, height: selected.height }]; selected.image = kind === 'rectangle' || kind === 'circle' ? null : { kind }; syncObjectSettingUi(); syncSelectedObjectSummary(); renderObjectList();
+    const kind = $('#image-kind').value; if (kind === 'circle') selected.colliders = [{ type: 'circle', radius: Math.min(selected.width, selected.height) / 2 }]; else if (kind === 'csv' && selected._csvPoints?.length) selected.colliders = [{ type: 'polygon', points: selected._csvPoints }]; else selected.colliders = [{ type: 'rect', width: selected.width, height: selected.height }]; selected.image = kind === 'rectangle' || kind === 'circle' ? null : { kind }; renderObjectList();
   }
   function deleteTemplate(template) { const index = templates.indexOf(template); if (index < 0) return; templates.splice(index, 1); engine.unregisterTemplate(template.id); programModels.get(template.id)?.dispose(); initialProgramModels.get(template.id)?.dispose(); programModels.delete(template.id); initialProgramModels.delete(template.id); template.destroy(); if (selected === template) selectTemplate(templates[index] || templates[index - 1] || null); renderObjectList(); }
   function clearRuntime() { for (const display of engine.displays.slice()) { for (const object of display.listObjects()) object.destroy(); display.delete(); } }

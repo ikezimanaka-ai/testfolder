@@ -52,9 +52,6 @@ class GameObject {
     this._baseHeight = this.height;
     this.color = spec.color || "rgba(0,150,200,0.9)";
     this.image = spec.image || null;
-    this.svg = spec.svg ? JSON.parse(JSON.stringify(spec.svg)) : null;
-    this.size = Math.max(0, Math.min(100, Number(spec.size ?? 100) || 0));
-    this.ghost = Math.max(0, Math.min(100, Number(spec.ghost ?? 100) || 0));
     this.colliders =
       Array.isArray(spec.colliders) && spec.colliders.length
         ? spec.colliders.map((c) =>
@@ -87,9 +84,6 @@ class GameObject {
       height: this.height,
       color: this.color,
       image: this.image,
-      svg: this.svg ? JSON.parse(JSON.stringify(this.svg)) : null,
-      size: this.size,
-      ghost: this.ghost,
       colliders: this.colliders.map((c) =>
         Object.assign({}, c, {
           points: c.points
@@ -110,7 +104,6 @@ class GameObject {
       : true;
     const copy = new GameObject(spec);
     copy._imageElement = this._imageElement || null;
-    copy._svgImage = this._svgImage || null;
     if (this.onCopy)
       try {
         this.onCopy(copy);
@@ -182,7 +175,7 @@ class GameObject {
   }
 
   get hidden() {
-    return !this.visible || this.ghost <= 0;
+    return !this.visible;
   }
 
   set hidden(value) {
@@ -331,33 +324,20 @@ class GameObject {
     if (c.type === "polygon")
       return { type: "polygon", points: c.points || [] };
     const width = c.width ?? 10,
-      height = c.height ?? 10,
-      x = c.x ?? 0,
-      y = c.y ?? 0;
+      height = c.height ?? 10;
     return {
       type: "polygon",
       points: [
-        { x: x - width / 2, y: y - height / 2 },
-        { x: x + width / 2, y: y - height / 2 },
-        { x: x + width / 2, y: y + height / 2 },
-        { x: x - width / 2, y: y + height / 2 },
+        { x: -width / 2, y: -height / 2 },
+        { x: width / 2, y: -height / 2 },
+        { x: width / 2, y: height / 2 },
+        { x: -width / 2, y: height / 2 },
       ],
     };
   }
 
   static _worldShape(object, collider) {
     const shape = GameObject._shape(collider);
-    const scale = Math.max(0, Math.min(100, Number(object.size ?? 100) || 0)) / 100;
-    if (shape.type === "circle") {
-      shape.x *= scale;
-      shape.y *= scale;
-      shape.radius *= scale;
-    } else {
-      shape.points = shape.points.map((point) => ({
-        x: point.x * scale,
-        y: point.y * scale,
-      }));
-    }
     if (shape.type === "circle") {
       const center = GameObject._transformPoint(object, shape);
       return Object.assign(shape, center);
@@ -470,18 +450,10 @@ class GameObject {
   }
 
   draw(ctx) {
-    if (!this.visible || this.size <= 0 || this.ghost <= 0) return;
+    if (!this.visible) return;
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate((this.angle * Math.PI) / 180);
-    ctx.globalAlpha *= this.ghost / 100;
-    const scale = this.size / 100;
-    ctx.scale(scale, scale);
-    if (this._svgImage && this._svgImage.complete) {
-      ctx.drawImage(this._svgImage, -this.width / 2, -this.height / 2, this.width, this.height);
-      ctx.restore();
-      return;
-    }
     if (this._imageElement && this._imageElement.complete) {
       ctx.drawImage(
         this._imageElement,
@@ -835,27 +807,6 @@ class Engine {
     }
   }
 
-  runFramePrograms(dt = 0) {
-    const scope = Object.fromEntries(
-      this.displays.map((layer) => [layer.name, layer]),
-    );
-    scope.INPUT = this.public.INPUT;
-    for (const source of this.framePrograms) {
-      const program = String(source || '').replace(/\bthis\./g, 'engine.');
-      new Function(
-        "engine",
-        "dt",
-        "INPUT",
-        "scope",
-        `
-          return (function () {
-            with (scope) { ${program}\n }
-          }).call(engine);
-        `,
-      )(this, dt, this.public.INPUT, scope);
-    }
-  }
-
   _removeDisplay(display) {
     this.displays = this.displays.filter((d) => d !== display);
     this._buffers.delete(display);
@@ -900,7 +851,6 @@ class Engine {
       last = now;
       const dt = Math.min(elapsed, 250);
       for (const update of this._updaters) update(dt / 1000, this.input);
-      this.runFramePrograms(dt / 1000);
       this._renderFrame();
       this._tickHandle = requestAnimationFrame(loop);
     };

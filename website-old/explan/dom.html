@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>DOMを作る</title><style>body{margin:0;background:#eef3f0;color:#263238;font:1rem/1.8 Georgia,"Yu Mincho",serif}main{width:min(850px,calc(100% - 32px));margin:32px auto}section{padding:22px;margin:18px 0;background:#fffdf9;border-left:5px solid #126782}h1{color:#126782}code,pre{font-family:monospace}pre{padding:16px;overflow:auto;background:#202c32;color:#edf5f2}button{padding:9px 13px;border:1px solid #126782;background:#dceff2;color:#263238;cursor:pointer}</style></head>
+<body><div id="app"></div><script src="../../qs/domDeal.js"></script><script>
+const root = new Deal(document.getElementById("app"));
+const main = root.CE("main");
+new Deal(main).CE("h1", { text: "DOMを作る: Deal の小さな実験" });
+new Deal(main).CE("p", { html: 'ここでは <code>document.createElement</code> と同じ仕事を、<code>Deal</code> で書きます。要素を作るだけでなく、親子関係とリンクも確認します。' });
+const lesson = new Deal(main).CE("section");
+new Deal(lesson).CE("h2", { text: "1. CEで子要素を作る" });
+new Deal(lesson).CE("p", { text: "CEは操作対象の中に要素を作り、作った要素を返します。返り値を次のDealへ渡せるのがポイントです。" });
+const result = new Deal(lesson).CE("div", { id: "result", styles: { padding: "12px", backgroundColor: "#dceff2" } });
+new Deal(result).CE("strong", { text: "これは Deal.CE() で作った要素です。" });
+const links = new Deal(main).CE("section");
+new Deal(links).CE("h2", { text: "2. CCEで親をセレクター指定する" });
+new Deal(links).CE("p", { text: "CCEは別の場所にある親を探して、その子を作ります。章一覧のAタグにも同じ考え方を使えます。" });
+new Deal(links).CE("a", { attrs: { href: "#answer" }, text: "このリンクで下へ移動する" });
+new Deal(main).CE("section", { id: "answer", html: '<h2>3. GETで確かめる</h2><p><code>GET("#result")</code> を押すと、作った要素の情報を確認できます。</p>' });
+const button = new Deal(main).CE("button", { text: "GETの結果を表示" });
+const output = new Deal(main).CE("pre", { id: "output" });
+button.addEventListener("click", () => { output.textContent = JSON.stringify(new Deal(document.body).GET("#result"), null, 2); });
+new Deal(main).CE("p", { html: '<a href="./index.html">← 補助教材一覧</a> / <a href="../guide.html#dom">総合ガイドのDOM章</a>' });
+</script></body></html>

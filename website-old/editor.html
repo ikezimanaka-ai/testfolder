@@ -11,15 +11,8 @@
 <body>
     <main class="editor">
         <aside class="inspector">
-            <div class="inspector-heading">
-                <p class="eyebrow">Engine / Object Editor</p>
-                <h1>Object settings</h1>
-                <div id="selected-object-summary" class="selected-object-summary" hidden>
-                    <span class="summary-label">Editing</span>
-                    <strong id="selected-object-name"></strong>
-                    <code id="selected-object-id"></code>
-                </div>
-            </div>
+            <p class="eyebrow">Engine / Object Editor</p>
+            <h1>Object settings</h1>
             <div id="empty-state" class="empty">Object一覧から選択してください。</div>
             <section class="engine-settings" hidden>
                 <p class="eyebrow">Engine settings</p>
@@ -38,41 +31,32 @@
                 <div id="engine-settings-error"></div>
             </section>
             <form id="object-form" hidden>
-                <details class="setting-section" open>
-                    <summary>Basic</summary>
-                    <div class="setting-section-body">
-                        <div class="field"><label for="object-id">Object ID</label><input id="object-id" type="text" required></div>
-                        <div class="field"><label for="tag">Tag</label><input id="tag" type="text" placeholder="player, enemy"></div>
-                        <div class="row">
-                            <div class="field"><label for="x">X</label><input id="x" type="number"></div>
-                            <div class="field"><label for="y">Y</label><input id="y" type="number"></div>
-                        </div>
-                        <div class="row">
-                            <div class="field"><label for="width">Width</label><input id="width" type="number" min="1"></div>
-                            <div class="field"><label for="height">Height</label><input id="height" type="number" min="1"></div>
-                        </div>
-                    </div>
-                </details>
-                <details class="setting-section" open>
-                    <summary>Appearance &amp; Collider</summary>
-                    <div class="setting-section-body">
-                        <div class="row">
-                            <div class="field"><label for="image-kind">Type</label><select id="image-kind">
-                                    <option value="rectangle">Rectangle</option>
-                                    <option value="circle">Circle</option>
-                                    <option value="image">PNG / JPEG</option>
-                                    <option value="csv">CSV polygon</option>
-                                </select></div>
-                            <div class="field"><label for="color">Color</label><input id="color" type="color"></div>
-                        </div>
-                        <div id="image-file-field" class="field" hidden><label for="image-file">Image file</label><input id="image-file" type="file" accept="image/png,image/jpeg"><span class="hint">PNG または JPEG を選択してください。</span></div>
-                        <div id="csv-file-field" class="field" hidden><label for="csv-file">Collision CSV</label><input id="csv-file" type="file" accept=".csv,text/csv"><span class="hint">1行に x,y。3点以上で多角形になります。</span></div>
-                    </div>
-                </details>
-                <details class="setting-section programs-section" open>
-                    <summary>Behavior</summary>
-                    <div class="setting-section-body">
-                    <fieldset>
+                <div class="field"><label for="object-id">Object ID</label><input id="object-id" type="text" required>
+                </div>
+                <div class="field"><label for="tag">Tag</label><input id="tag" type="text" placeholder="player, enemy">
+                </div>
+                <div class="row">
+                    <div class="field"><label for="x">X</label><input id="x" type="number"></div>
+                    <div class="field"><label for="y">Y</label><input id="y" type="number"></div>
+                </div>
+                <div class="row">
+                    <div class="field"><label for="width">Width</label><input id="width" type="number" min="1"></div>
+                    <div class="field"><label for="height">Height</label><input id="height" type="number" min="1"></div>
+                </div>
+                <div class="row">
+                    <div class="field"><label for="image-kind">Appearance / Collider</label><select id="image-kind">
+                            <option value="rectangle">Rectangle</option>
+                            <option value="circle">Circle</option>
+                            <option value="image">PNG / JPEG</option>
+                            <option value="csv">CSV polygon</option>
+                        </select></div>
+                    <div class="field"><label for="color">Color</label><input id="color" type="color"></div>
+                </div>
+                <div class="field"><label for="image-file">Image file</label><input id="image-file" type="file"
+                        accept="image/png,image/jpeg"></div>
+                <div class="field"><label for="csv-file">Collision CSV</label><input id="csv-file" type="file"
+                        accept=".csv,text/csv"><span class="hint">1行に x,y。3点以上で多角形になります。</span></div>
+                <fieldset>
                     <legend>Initial Programs（追加時・コピー時に1回）</legend>
                     <div id="initial-program-editor" aria-label="Initial Programs code editor"></div><textarea
                         id="initial-program" spellcheck="false"
@@ -88,9 +72,7 @@
                     <div class="hint">毎フレーム実行。self.move / self.remove / self.removeFrom(display) /
                         self.addObjectById(id) が使えます。Private値はself.setPrivate(name, value)で保存します。</div>
                     <div id="program-error"></div><button id="clear-program-error" type="button">エラー表示を消す</button>
-                    </fieldset>
-                    </div>
-                </details>
+                </fieldset>
                 <button id="delete-object" class="danger" type="button">Objectを削除</button>
             </form>
         </aside>
