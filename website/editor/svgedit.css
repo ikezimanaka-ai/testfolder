@@ -12,6 +12,7 @@
   --global-se-spin-input-width: 82px;
   --top-toolbar-min-height: 80px;
 }
+
 .svg_editor * {
   transform-origin: 0 0;
 }
