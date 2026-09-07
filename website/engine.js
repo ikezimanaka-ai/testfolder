@@ -157,6 +157,14 @@ class GameObject {
     return next;
   }
 
+  changePrivate(name, delta = 0) {
+    if (typeof name !== "string" || !name) throw new TypeError("Private variable name must be a non-empty string");
+    const current = Number(this.getPrivate(name, 0)) || 0;
+    const next = current + Number(delta || 0);
+    this.setPrivate(name, next);
+    return next;
+  }
+
   setScale(scale = 1) {
     const ratio = Number(scale);
     if (!Number.isFinite(ratio) || ratio <= 0) throw new TypeError("Scale must be a positive finite number");
@@ -475,6 +483,7 @@ class GameObject {
     ctx.translate(this.x, this.y);
     ctx.rotate((this.angle * Math.PI) / 180);
     ctx.globalAlpha *= this.ghost / 100;
+    if (this.ghost < 100) ctx.globalCompositeOperation = "lighter";
     const scale = this.size / 100;
     ctx.scale(scale, scale);
     if (this._svgImage && this._svgImage.complete) {
@@ -572,6 +581,12 @@ class Display {
 
   addObjectById(id, overrides = {}) {
     if (!this._engine) throw new Error("Display must belong to an Engine");
+    const compiled = this._engine._compiledTemplateSpecs?.get(id);
+    if (compiled) {
+      const spec = Object.assign({}, compiled, overrides, { id: undefined, isCopy: false });
+      delete spec.id;
+      return this.addObject(new GameObject(spec));
+    }
     const template = this._engine.getTemplate(id);
     if (!template) throw new Error(`Object template ID was not found: ${id}`);
     return this.addObject(
@@ -751,6 +766,7 @@ class Engine {
     this._tickHandle = null;
     this._updaters = new Set();
     this._renderHooks = new Set();
+    this._compiledTemplateSpecs = null;
     this._buffers = new Map();
     this.canvas = canvas || null;
     this.ctx = this.canvas ? this.canvas.getContext("2d") : null;
@@ -782,6 +798,14 @@ class Engine {
 
   unregisterTemplate(id) {
     return this.templates.delete(id);
+  }
+
+  compileTemplateSpecs(specs) {
+    this._compiledTemplateSpecs = new Map((specs || []).map((spec) => [spec.id, JSON.parse(JSON.stringify(spec))]));
+  }
+
+  clearCompiledTemplateSpecs() {
+    this._compiledTemplateSpecs = null;
   }
 
   runInitialPrograms(object, display) {
