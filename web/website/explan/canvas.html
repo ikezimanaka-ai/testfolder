@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Canvasに描く</title><style>body{margin:0;background:#f7f4ee;color:#263238;font:1rem/1.8 Georgia,"Yu Mincho",serif}main{width:min(850px,calc(100% - 32px));margin:32px auto}section{padding:22px;margin:18px 0;background:#fffdf9;border:1px solid #d9d1c5}h1{color:#126782}canvas{display:block;width:min(100%,640px);height:auto;border:1px solid #263238;background:white}code,pre{font-family:monospace}pre{padding:16px;overflow:auto;background:#202c32;color:#edf5f2}.note{padding:12px;background:#dceff2}</style></head>
+<body><div id="app"></div><script src="../../qs/domDeal.js"></script><script src="../canvasDealer.js"></script><script>
+const root = new Deal(document.getElementById("app"));
+const main = root.CE("main");
+new Deal(main).CE("h1", { text: "Canvasに描く: CD1 と CD3" });
+new Deal(main).CE("p", { html: '<code>CD1</code> は Canvas の実座標、<code>CD3</code> はゲーム内の論理座標を使います。ボタンを押すと、同じ論理座標で描いた図形を見比べられます。' });
+const canvas = new Deal(main).CE("canvas", { attrs: { id: "sample", width: "640", height: "360" } });
+const controls = new Deal(main).CE("section");
+new Deal(controls).CE("button", { id: "cd1", text: "CD1で描く" });
+new Deal(controls).CE("button", { id: "cd3", text: "CD3で描く" });
+new Deal(controls).CE("button", { id: "clear", text: "消す" });
+new Deal(main).CE("p", { class: "note", text: "Canvasを640 x 360、論理世界を800 x 600にしています。CD3なら論理の(100, 100)は実際の(80, 60)へ変換されます。" });
+const cd1 = new CD1(canvas); const cd3 = new CD3(canvas, 800, 600);
+document.getElementById("cd1").addEventListener("click", () => { cd1.clearCanvas(); cd1.drawRectangle(100, 100, 200, 100, "#b85c38"); cd1.drawCircle(420, 170, 45, "#126782"); cd1.drawText("CD1: 実座標", 20, 330, "20px sans-serif"); });
+document.getElementById("cd3").addEventListener("click", () => { cd3.clearCanvas(); cd3.drawRectangle(100, 100, 200, 100, "#b85c38"); cd3.drawCircle(520, 300, 45, "#126782"); cd3.drawText("CD3: 論理座標", 20, 330, "20px sans-serif"); });
+document.getElementById("clear").addEventListener("click", () => cd1.clearCanvas());
+new Deal(main).CE("pre", { text: 'const drawer = new CD3(canvas, 800, 600);\ndrawer.drawRectangle(100, 100, 200, 100, "#b85c38");' });
+new Deal(main).CE("p", { html: '<a href="./index.html">← 補助教材一覧</a> / <a href="../guide.html#canvas">総合ガイドのCanvas章</a>' });
+</script></body></html>

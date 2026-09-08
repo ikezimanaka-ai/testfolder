@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>README Viewer</title>
+  <!-- marked.js の読み込み -->
+  <style>
+    #content * {
+      padding-left: 40px;
+    }
+
+    body, html {
+      background-color: #003066;
+      color: white;
+      padding-left: 0;
+    }
+
+    a {
+      color: transparent;
+
+      /* オレンジと黒が50%の位置で切り替わるグラデーション */
+      background: linear-gradient(to right, red 50%, blanchedalmond 50%) 100%;
+      /* 背景をテキストで切り抜く */
+      background-clip: text;
+
+      /* 横幅は200%にしてグラデーションの青部分は見えないようにする */
+      background-size: 200% 100%;
+
+      transition: background-position 0.3s;
+    }
+
+    @keyframes a-rain {
+      0% {
+        background-color: blanchedalmond;
+      }
+
+      100% {
+        background-color: red;
+      }
+    }
+
+    a:hover {
+      background-position: 0 100%;
+    }
+
+    #content {
+      padding: 20px;
+    }
+
+    #content h1 {
+      padding-left: 10px;
+    }
+    
+    #content h2 {
+      padding-left: 20px;
+    }
+
+    #content h3 {
+      padding-left: 30px;
+    }
+
+    #content * * {
+      padding-left: 0;
+    }
+
+    #content .language-sh {
+      display: block;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: #222;
+      border: 1px solid #444;
+    }
+
+    #content .language-text {
+      display: block;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: #222;
+      border: 1px solid #444;
+    }
+
+    #content .language-js {
+      display: block;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: #1e1e1e;
+      border: 1px solid #3e3e42;
+      color: #d4d4d4;
+      font-family: Consolas, "Courier New", monospace;
+      line-height: 1.55;
+      tab-size: 2;
+    }
+
+    #content .language-js .hljs-comment,
+    #content .language-js .hljs-quote {
+      color: #6a9955;
+    }
+
+    #content .language-js .hljs-keyword,
+    #content .language-js .hljs-selector-tag,
+    #content .language-js .hljs-literal,
+    #content .language-js .hljs-name {
+      color: #569cd6;
+    }
+
+    #content .language-js .hljs-string,
+    #content .language-js .hljs-attr,
+    #content .language-js .hljs-template-tag,
+    #content .language-js .hljs-template-variable {
+      color: #ce9178;
+    }
+
+    #content .language-js .hljs-number,
+    #content .language-js .hljs-variable,
+    #content .language-js .hljs-operator,
+    #content .language-js .hljs-title,
+    #content .language-js .hljs-built_in {
+      color: #b5cea8;
+    }
+
+    #content .language-js .hljs-function,
+    #content .language-js .hljs-title.function_ {
+      color: #dcdcaa;
+    }
+
+    #content .language-js .hljs-params,
+    #content .language-js .hljs-property {
+      color: #9cdcfe;
+    }
+
+    #content .language-js .hljs-meta {
+      color: #c586c0;
+    }
+
+    #content ul {
+      border-radius: 5px;
+      border: 1px solid #444;
+      background-color: #180f0f;
+      padding: 10px;
+      margin: 10px 0;
+    }
+
+    #content table {
+      border-collapse: collapse;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #444;
+      background-color: #180f0f;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked@18.0.9/lib/marked.umd.min.js"></script>
+</head>
+
+<body>
+  <input type="text" id="url-input" placeholder="Enter URL of Markdown file">
+  <button onclick="cmd(document.getElementById('url-input').value)">README</button>
+  <!-- 変換後のHTMLを表示するエリア -->
+  <div id="content">読み込み中...</div>
+
+  <script>
+    fetch('./README.md')
+      .then(response => response.text())
+      .then(markdownText => {
+        // マークダウンをHTMLに変換して要素に代入
+        renderMarkdown(markdownText);
+      })
+      .catch(error => {
+        document.getElementById('content').innerText = '読み込みに失敗しました。';
+        console.error('Error loading README.md:', error);
+      });
+    function cmd(url) {
+      fetch(url)
+        .then(response => response.text())
+        .then(markdownText => {
+          // マークダウンをHTMLに変換して要素に代入
+          renderMarkdown(markdownText);
+        })
+        .catch(error => {
+          document.getElementById('content').innerText = '読み込みに失敗しました。';
+        });
+    }
+
+    function renderMarkdown(markdownText) {
+      const content = document.getElementById('content');
+      content.innerHTML = marked.parse(markdownText);
+      content.querySelectorAll('pre code.language-js').forEach(codeBlock => {
+        codeBlock.innerHTML = highlightJavaScript(codeBlock.textContent);
+        codeBlock.classList.add('hljs');
+      });
+    }
+
+    function highlightJavaScript(source) {
+      const tokenPattern = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|`(?:\\.|[^`])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:const|let|var|function|return|if|else|for|while|new|class|extends|import|from|export|default|async|await|try|catch|throw|typeof|instanceof|true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b/g;
+      let result = '';
+      let lastIndex = 0;
+
+      source.replace(tokenPattern, (token, offset) => {
+        result += escapeHtml(source.slice(lastIndex, offset));
+        const escapedToken = escapeHtml(token);
+        let tokenClass = 'hljs-number';
+
+        if (token.startsWith('//') || token.startsWith('/*')) {
+          tokenClass = 'hljs-comment';
+        } else if (/^[`"']/.test(token)) {
+          tokenClass = 'hljs-string';
+        } else if (/^(?:const|let|var|function|return|if|else|for|while|new|class|extends|import|from|export|default|async|await|try|catch|throw|typeof|instanceof|true|false|null|undefined)$/.test(token)) {
+          tokenClass = 'hljs-keyword';
+        }
+
+        result += `<span class="${tokenClass}">${escapedToken}</span>`;
+        lastIndex = offset + token.length;
+        return token;
+      });
+
+      return result + escapeHtml(source.slice(lastIndex));
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[character]));
+    }
+  </script>
+</body>
+
+</html>
