@@ -1,0 +1,3 @@
+[submodule "web/editor/lib/svgedit"]
+    path = web/editor/lib/svgedit
+    url = https://github.com/SVG-Edit/svgedit.git
