@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FELT / Five Card Draw</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="offline-loading" id="offlineLoading">
+    <div class="offline-loading-mark">♠</div>
+    <p class="eyebrow">LOCAL TABLE</p>
+    <h2>カードを準備中</h2>
+    <div class="loading-track"><span id="loadingProgress"></span></div>
+    <p id="loadingStatus">ゲームファイルをキャッシュしています...</p>
+  </div>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">♠</span><div><p class="eyebrow">OFFLINE TABLE</p><h1>FELT</h1></div></div>
+      <div class="round-status"><span class="live-dot"></span><span id="phaseLabel">卓を準備中</span><span class="round-count" id="roundLabel">ROUND 01</span></div>
+      <div class="header-actions"><button class="icon-button" id="rulesButton" title="ルール説明" aria-label="ルール説明">?</button><button class="icon-button" id="settingsButton" title="ルール設定" aria-label="ルール設定">⚙</button></div>
+    </header>
+
+    <section class="table-layout">
+      <aside class="players-panel panel">
+        <div class="panel-heading"><div><p class="eyebrow">SEATED PLAYERS</p><h2>プレイヤー</h2></div><span class="player-count" id="playerCount">04</span></div>
+        <div id="playerList" class="player-list"></div>
+        <div class="legend"><span><i class="legend-dot you"></i>あなた</span><span><i class="legend-dot cpu"></i>CPU</span></div>
+      </aside>
+
+      <section class="felt-area">
+        <div class="felt-glow"></div>
+        <div class="table-header"><div><p class="eyebrow">FIVE CARD DRAW</p><h2 id="tableMessage">カードを選んで交換</h2></div><div class="ante-display"><span>ANTE</span><strong id="anteValue">10</strong></div></div>
+        <div class="table-surface">
+          <div class="table-rail"></div>
+          <div class="card-zone deck-zone"><div class="deck-stack" id="deckStack"><img src="../cards/back@2x.png" alt="山札"><span class="deck-count" id="deckCount">52</span></div><span class="zone-label">DRAW PILE</span></div>
+          <div class="pot-zone"><span class="zone-label">POT</span><div class="pot-chips" id="potChips"></div><strong class="pot-value" id="potValue">0</strong></div>
+          <div class="card-zone discard-zone"><div class="discard-stack" id="discardStack"></div><span class="zone-label">DISCARD</span></div>
+          <div class="center-message" id="centerMessage"><span class="center-kicker">WELCOME TO THE TABLE</span><strong>GOOD LUCK</strong></div>
+        </div>
+        <div class="action-bar"><div class="action-hint" id="actionHint">参加人数を選んでゲーム開始</div><div class="actions"><button class="secondary-button" id="foldButton">降りる</button><button class="primary-button" id="mainAction">ゲーム開始</button></div></div>
+      </section>
+    </section>
+
+    <section class="hand-panel panel">
+      <div class="hand-heading"><div><p class="eyebrow">YOUR HAND</p><h2>あなたのカード</h2></div><span class="selection-count" id="selectionCount">0 / 5 selected</span></div>
+      <div class="hand-row" id="playerHand"></div>
+      <div class="hand-footer"><p id="handEvaluation">カードが配られると役が表示されます</p><div class="quick-actions"><button class="ghost-button" id="clearSelection">選択解除</button><button class="swap-button" id="exchangeButton" disabled>交換して次のターンへ <span>↗</span></button></div></div>
+    </section>
+
+    <footer class="footer-bar"><span>FELT / LOCAL TABLE v1.0</span><span>標準52枚デッキ · 5枚ドロー</span><span>OFFLINE READY</span></footer>
+  </main>
+
+  <dialog id="settingsDialog" class="settings-dialog"><form method="dialog"><div class="dialog-top"><div><p class="eyebrow">TABLE CONFIGURATION</p><h2>ルール設定</h2></div><button class="close-button" value="cancel" aria-label="閉じる">×</button></div><div class="settings-grid"><label>CPU人数<select id="cpuCount"><option value="1">1 CPU</option><option value="2">2 CPU</option><option value="3" selected>3 CPU</option><option value="4">4 CPU</option><option value="5">5 CPU</option><option value="6">6 CPU</option></select></label><label>初期コイン<input id="startingCoins" type="number" min="100" step="50" value="500"></label><label>アンティ<input id="anteSetting" type="number" min="0" step="5" value="10"></label><label>ベット単位<input id="betUnit" type="number" min="1" step="1" value="10"></label><label>交換ラウンド数<input id="turns" type="number" min="1" max="5" value="1"></label><label>1回の最大交換枚数<input id="maxDraw" type="number" min="1" max="5" value="5"></label></div><label class="toggle-row"><input id="jokerToggle" type="checkbox"><span class="toggle"></span><span><strong>ジョーカーを1枚追加</strong><small>ワイルドカードとして最強の役を補完</small></span></label><label class="toggle-row"><input id="limitToggle" type="checkbox" checked><span class="toggle"></span><span><strong>ベット上限を有効化</strong><small>1ラウンドの最大ベットをアンティの10倍に制限</small></span></label><div class="dialog-bottom"><p>設定は次のゲームから反映されます</p><button class="primary-button" id="applySettings" value="default">設定を適用</button></div></form></dialog>
+  <dialog id="rulesDialog" class="settings-dialog rules-dialog"><form method="dialog"><div class="dialog-top"><div><p class="eyebrow">HOW TO PLAY</p><h2>ドローポーカーのルール</h2></div><button class="close-button" value="cancel" aria-label="閉じる">×</button></div><div class="rules-content"><section><span class="rule-number">01</span><div><h3>配布とアンティ</h3><p>全員に5枚ずつ配り、設定したアンティをポットに入れます。山札は52枚、ジョーカーを追加することもできます。</p></div></section><section><span class="rule-number">02</span><div><h3>交換ラウンド</h3><p>各ラウンドは「チェックまたは降りる」→「必ず1枚以上カード交換」の順です。設定した交換ラウンド数だけ繰り返します。</p></div></section><section><span class="rule-number">03</span><div><h3>ベット操作</h3><p>ベット中は画面右下の「チェック」または「降りる」を選びます。チェック後は必ずカード交換へ進みます。</p></div></section><section><span class="rule-number">04</span><div><h3>役の強さ</h3><p>ファイブカード ＞ ストレートフラッシュ ＞ フォーカード ＞ フルハウス ＞ フラッシュ ＞ ストレート ＞ スリーカード ＞ ツーペア ＞ ワンペア ＞ ハイカード</p></div></section><section><span class="rule-number">05</span><div><h3>ショーダウン</h3><p>最後の交換が終わるまで相手のカードは非公開です。ショーダウンで役を比較し、最も強い役のプレイヤーがポットを獲得します。</p></div></section></div><div class="dialog-bottom"><p>設定ボタンから卓のルールを変更できます</p><button class="primary-button" value="default">閉じる</button></div></form></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=17', {scope: './'}).catch(() => {});</script>
+  <script src="./game.js?v=17"></script>
+</body>
+</html>
