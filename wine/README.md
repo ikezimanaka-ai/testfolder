@@ -19,3 +19,20 @@ python3 -m http.server 4173
 マルチスレッド版を使う場合は、Boxedwine 公式リリースの `MultiThreaded/` 一式に差し替え、静的ホスティング側で COOP/COEP ヘッダーを設定してください。GitHub Pages などヘッダーを設定できない配信先では、現在のシングルスレッド版が適しています。
 
 Boxedwine は GPL-2.0 のオープンソースプロジェクトです。配布時は Boxedwine のライセンスとビルド成果物の再配布条件を確認してください。
+
+## ローカル実行（別方式）
+
+ブラウザを経由せず、Linux の Wine でEXEを直接実行する方法も用意しています。
+
+```sh
+sudo apt install wine64
+python3 local_runner.py /path/to/application.exe
+```
+
+Wine の実行ファイルがPATHにない場合は、パスを指定できます。
+
+```sh
+python3 local_runner.py /path/to/application.exe --wine /path/to/wine
+```
+
+このランナーはネットワーク待受を行いません。外部から使う場合は、別途認証付きのリモートデスクトップまたはWebRTC画面配信を構成してください。単純にポートを公開すると、第三者が任意のEXEを実行できる危険があります。

@@ -1,4 +1,4 @@
-const state = { file: null, runtimeAvailable: false };
+const state = { file: null, runtimeAvailable: false, runtimeReady: false };
 
 const elements = {
   dropZone: document.querySelector('#dropZone'),
@@ -44,7 +44,7 @@ function setFile(file) {
   elements.fileCard.classList.remove('hidden');
   elements.fileName.textContent = file.name;
   elements.fileSize.textContent = formatBytes(file.size);
-  elements.launchButton.disabled = false;
+  elements.launchButton.disabled = !state.runtimeReady;
   log(`${file.name} を読み込みました。起動準備完了`, 'accent');
 }
 
@@ -89,7 +89,7 @@ function loadRuntimeStatus() {
 
 async function launch() {
   if (!state.file) return;
-  if (!state.runtimeAvailable) {
+  if (!state.runtimeAvailable || !state.runtimeReady) {
     log('起動できません: Boxedwine WebAssembly ランタイムが未配置です。', 'warn');
     elements.aboutDialog.showModal();
     return;
@@ -119,7 +119,9 @@ elements.dropZone.addEventListener('drop', (event) => setFile(event.dataTransfer
 elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
 elements.dialogClose.addEventListener('click', () => elements.aboutDialog.close());
 window.addEventListener('boxedwine-ready', () => {
+  state.runtimeReady = true;
   elements.runtimeLabel.textContent = 'ランタイム準備完了';
+  elements.launchButton.disabled = !state.file;
   log('Wine filesystem ready. EXE を起動できます。', 'accent');
 });
 loadRuntimeStatus();
