@@ -39,7 +39,7 @@
     if (!state.deck.length && state.discard.length) state.deck=shuffle(state.discard.splice(0));
     return state.deck.pop() || makeDeck()[Math.floor(Math.random()*52)];
   }
-  function sortRanks(cards) { return cards.filter(c=>!c.joker).map(c=>c.rank).sort((a,b)=>b-a); }
+  function sortRanks(cards) { return cards.filter(c=>!c.joker).map(c=>c.rank===1?14:c.rank).sort((a,b)=>b-a); }
   function evaluateHand(cards) {
     const jokers = cards.filter(c=>c.joker).length, natural = cards.filter(c=>!c.joker), ranks = sortRanks(cards), counts = {};
     natural.forEach(c => counts[c.rank]=(counts[c.rank]||0)+1);
