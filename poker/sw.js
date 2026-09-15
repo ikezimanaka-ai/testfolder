@@ -1,5 +1,5 @@
-const CACHE_NAME = 'felt-poker-v18';
-const APP_FILES = ['./?v=18', './index.html?v=18', './style.css?v=18', './game.js?v=18', './sw.js?v=18'];
+const CACHE_NAME = 'felt-poker-v19';
+const APP_FILES = ['./?v=19', './index.html?v=19', './style.css?v=19', './game.js?v=19', './sw.js?v=19'];
 const CARD_FILES = ['back@2x.png', 'j01@2x.png', 'j02@2x.png'];
 for (const suit of ['s', 'h', 'd', 'c']) for (let rank = 1; rank <= 13; rank++) CARD_FILES.push(`${suit}${String(rank).padStart(2, '0')}@2x.png`);
 
@@ -22,7 +22,7 @@ self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
   const appNames = new Set(['/poker/', '/poker/index.html', '/poker/style.css', '/poker/game.js']);
   if (appNames.has(requestUrl.pathname)) {
-    const cacheUrl = `${requestUrl.pathname.endsWith('/') ? './' : `./${requestUrl.pathname.split('/').pop()}`}?v=18`;
+    const cacheUrl = `${requestUrl.pathname.endsWith('/') ? './' : `./${requestUrl.pathname.split('/').pop()}`}?v=19`;
     event.respondWith(caches.match(new URL(cacheUrl, requestUrl.origin)).then(cached => cached || fetch(event.request)));
     return;
   }

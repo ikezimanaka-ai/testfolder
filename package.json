@@ -1,0 +1,24 @@
+{
+  "name": "testfolder",
+  "version": "1.0.0",
+  "description": "hello",
+  "main": "index.js",
+  "scripts": {
+    "start": "node multi-poker/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ikezimanaka-ai/testfolder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ikezimanaka-ai/testfolder/issues"
+  },
+  "homepage": "https://github.com/ikezimanaka-ai/testfolder#readme",
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}
