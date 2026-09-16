@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FELT / Rooms</title>
+  <link rel="stylesheet" href="../poker/style.css">
+  <link rel="stylesheet" href="./multi.css">
+</head>
+<body>
+  <main class="app-shell room-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">♠</span><div><p class="eyebrow">MULTIPLAYER TABLE</p><h1>FELT</h1></div></div>
+      <div class="round-status"><span class="live-dot"></span><span id="connectionLabel">サーバーに接続中</span></div>
+      <div class="header-actions"><a class="icon-button link-button" href="../poker/index.html" title="ひとりで遊ぶ">↩</a></div>
+    </header>
+
+    <section class="room-hero panel">
+      <p class="eyebrow">CHOOSE YOUR TABLE</p>
+      <h2>マルチポーカールーム</h2>
+      <p>部屋を作るか、公開中のテーブルに参加してください。</p>
+      <form id="createRoomForm" class="room-create">
+        <label><span>部屋ID</span><input id="roomIdInput" required minlength="2" maxlength="24" pattern="[A-Za-z0-9_-]+" placeholder="evening-table" autocomplete="off"></label>
+        <label><span>あなたの名前</span><input id="playerNameInput" maxlength="16" placeholder="PLAYER" autocomplete="nickname"></label>
+        <button class="primary-button" type="submit">部屋を作る <span>↗</span></button>
+      </form>
+    </section>
+
+    <section class="room-list-section">
+      <div class="panel-heading"><div><p class="eyebrow">OPEN TABLES</p><h2>公開中の部屋</h2></div><button id="refreshRooms" class="secondary-button" type="button">更新</button></div>
+      <div id="roomList" class="room-list"><p class="empty-state">部屋を探しています...</p></div>
+    </section>
+    <p id="roomToast" class="room-toast" role="status"></p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./realtime.js"></script>
+  <script src="./room.js"></script>
+</body>
+</html>

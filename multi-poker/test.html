@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WebRTC Game Test</title>
+</head>
+
+<body>
+
+    <h1>WebRTC Game Test</h1>
+
+    <input id="room" value="test-room">
+    <button id="connect">部屋に接続</button>
+
+    <br><br>
+
+    <input id="message" placeholder="メッセージ">
+    <button id="send">送信</button>
+
+    <pre id="log"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        const SUPABASE_URL = "https://aozojlamhwltfafnxlrt.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_ezUps9ag-WsSire2wJWgYw_2BEoYPBn";
+
+        const client = window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        );
+
+        let channel = null;
+
+        const log = (text) => {
+            document.querySelector("#log").textContent += text + "\n";
+        };
+
+        document.querySelector("#connect").onclick = async () => {
+
+            const roomName = document.querySelector("#room").value;
+
+            channel = client.channel(roomName);
+
+            channel
+                .on(
+                    "broadcast",
+                    { event: "message" },
+                    (payload) => {
+                        console.log("受信:", payload);
+
+                        log(
+                            "受信: " +
+                            JSON.stringify(payload.payload)
+                        );
+                    }
+                )
+                .subscribe((status) => {
+
+                    console.log("Supabase:", status);
+
+                    if (status === "SUBSCRIBED") {
+                        log("部屋に接続しました！");
+                    }
+                });
+        };
+
+        document.querySelector("#send").onclick = async () => {
+
+            if (!channel) {
+                log("先に部屋へ接続してください");
+                return;
+            }
+
+            const message =
+                document.querySelector("#message").value;
+
+            await channel.send({
+                type: "broadcast",
+                event: "message",
+                payload: {
+                    message: message,
+                    time: Date.now()
+                }
+            });
+
+            log("送信: " + message);
+        };
+    </script>
+
+</body>
+
+</html>

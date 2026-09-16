@@ -1,14 +1,37 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FELT / Multi Poker Lobby</title>
-    <link rel="stylesheet" href="/poker/style.css" />
-  </head>
-  <body>
-    <div id="appRoot"></div>
-    <script>window.__MULTI_POKER_ROOM_ID__ = null;</script>
-    <script src="/multi-poker/app.js"></script>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FELT / Multiplayer Poker</title>
+  <link rel="stylesheet" href="../poker/style.css">
+  <link rel="stylesheet" href="./multi.css">
+</head>
+<body>
+  <div class="offline-loading" id="offlineLoading">
+    <div class="offline-loading-mark">♠</div>
+    <p class="eyebrow">MULTIPLAYER TABLE</p>
+    <h2>カードを準備中</h2>
+    <div class="loading-track"><span id="loadingProgress"></span></div>
+    <p id="loadingStatus">カード画像を読み込んでいます...</p>
+  </div>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">♠</span><div><p class="eyebrow">MULTIPLAYER TABLE</p><h1>FELT</h1></div></div>
+      <div class="round-status"><span class="live-dot"></span><span id="connectionLabel">接続中</span><span class="round-count" id="roundLabel">ROUND 01</span></div>
+      <div class="header-actions"><a class="icon-button link-button" href="./room.html" title="部屋一覧" aria-label="部屋一覧">⌂</a><button class="icon-button" id="settingsButton" type="button" title="ゲーム設定" aria-label="ゲーム設定">⚙</button></div>
+    </header>
+    <section class="table-layout">
+      <aside class="players-panel panel"><div class="panel-heading"><div><p class="eyebrow">SEATED PLAYERS</p><h2>プレイヤー</h2></div><span class="player-count" id="playerCount">00</span></div><div id="playerList" class="player-list"></div><div class="legend"><span><i class="legend-dot you"></i>あなた</span><span><i class="legend-dot cpu"></i>相手</span></div></aside>
+      <section class="felt-area"><div class="felt-glow"></div><div class="table-header"><div><p class="eyebrow" id="roomLabel">TABLE</p><h2 id="tableMessage">参加者を待っています</h2></div><div class="ante-display"><span>POT</span><strong id="potValue">0</strong></div></div><div class="table-surface"><div class="table-rail"></div><div class="card-zone deck-zone"><div class="deck-stack"><img src="../cards/back@2x.png" alt="山札"><span class="deck-count" id="deckCount">--</span></div><span class="zone-label">DRAW PILE</span></div><div class="pot-zone"><span class="zone-label">TABLE POT</span><div class="pot-chips" id="potChips"></div><strong class="pot-value" id="centerPot">0</strong></div><div class="center-message" id="centerMessage"><span class="center-kicker">WELCOME TO THE TABLE</span><strong>待機中</strong></div></div><div class="action-bar"><div class="action-hint" id="actionHint">部屋に接続しています...</div><div class="actions"><button class="secondary-button" id="foldButton" disabled>降りる</button><button class="primary-button" id="mainAction" disabled>ゲーム開始</button></div></div></section>
+    </section>
+    <section class="hand-panel panel" id="handPanel"><div class="hand-heading"><div><p class="eyebrow">YOUR HAND · HOVER TO OPEN</p><h2>あなたのカード</h2></div><span class="selection-count" id="selectionCount">0 / 5 selected</span></div><div class="hand-row" id="playerHand"></div><div class="hand-footer"><p id="handEvaluation">カードが配られると役が表示されます</p><div class="quick-actions"><button class="ghost-button" id="clearSelection">選択解除</button><button class="swap-button" id="exchangeButton" disabled>交換して公開 <span>↗</span></button></div></div></section>
+    <footer class="footer-bar"><span>FELT / MULTIPLAYER v1.0</span><span id="footerRoom">ROOM</span><span>SUPABASE REALTIME</span></footer>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog id="settingsDialog" class="settings-dialog"><form method="dialog" id="settingsForm"><div class="dialog-top"><div><p class="eyebrow">TABLE CONFIGURATION</p><h2>ゲーム設定</h2></div><button class="close-button" value="cancel" aria-label="閉じる">×</button></div><div class="settings-grid"><label>初期コイン<input id="startingCoins" type="number" min="10" step="10" value="500"></label><label>ベット単位<input id="betUnit" type="number" min="1" step="1" value="10"></label><label>交換ラウンド数<input id="turns" type="number" min="1" max="5" value="1"></label><label>Joker枚数<select id="jokerCount"><option value="0">なし</option><option value="1">1枚</option><option value="2">2枚</option><option value="3">3枚</option><option value="4">4枚</option><option value="5">5枚</option></select></label><label>CPU人数<select id="cpuCount"><option value="0">なし</option><option value="1">1 CPU</option><option value="2">2 CPU</option><option value="3">3 CPU</option><option value="4">4 CPU</option><option value="5">5 CPU</option></select></label></div><div class="dialog-bottom"><p>ホストのみ変更できます</p><button class="primary-button" id="saveSettings" value="default">設定を保存</button></div></form></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./realtime.js"></script>
+  <script src="./game.js"></script>
+</body>
 </html>
