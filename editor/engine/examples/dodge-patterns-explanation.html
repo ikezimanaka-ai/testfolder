@@ -1,0 +1,126 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>攻撃パターンの解説</title><link rel="stylesheet" href="./game-example.css"></head><body><header><h1>攻撃パターン：コードの読み方</h1><nav><a href="./dodge-patterns.html">ゲームで遊ぶ</a></nav></header><main class="explanation">
+<p>このゲームは、弾幕でよく使われる規則的な攻撃を順番に避けます。放射、螺旋、狙い撃ち、波、輪と隙間、回転十字、ビーム、雨に加え、曲線、交互の壁、狙い撃ち連射、遅延リング、左右スイープも4.5秒ごとに切り替えます。</p>
+<div class="chunk"><pre><code>const patterns = ["放射", "螺旋", "狙い撃ち", "波",
+  "輪と隙間", "回転十字", "ビーム", "雨"];</code></pre><p>弾幕名を配列にします。番号で現在のパターンを選ぶため、配列の順序がゲームの進行順になります。一般的な数学パターンを使っており、特定作品の素材やコードをコピーしていません。</p></div>
+<div class="chunk"><pre><code>if (patternClock &gt;= 4.5) {
+  patternIndex = (patternIndex + 1) % patterns.length;
+}</code></pre><p>4.5秒たつと番号を1増やします。%は余りなので、最後の番号の次は0へ戻ります。これで8種類を繰り返せます。</p></div>
+<p>弾幕はランダムな点を増やすだけではありません。放射は円、螺旋は角度の変化、狙い撃ちはプレイヤー方向、輪は安全な隙間、波は上下の揺れ、ビームは長い危険区域というように、見て避けられる規則を組み合わせます。</p>
+<h2>追加された弾幕</h2>
+<div class="chunk"><pre><code>function curved() {
+  for (let i = 0; i &lt; 7; i++)
+    addBullet(80 + i * 105, -8, Math.PI / 2, 100, "#f0abfc",
+      { wave: true, phase: i, angularVelocity: .18 });
+}</code></pre><p>曲線はwaveで上下に揺れ、angularVelocityで進行方向を少し回します。同じ速度でも位相phaseが違うため、7発が同じ線ではなく曲がった列になります。</p></div>
+<div class="chunk"><pre><code>const fromLeft = patternStep % 2 === 0;
+if (fromLeft &amp;&amp; i === 5 || !fromLeft &amp;&amp; i === 1) continue;</code></pre><p>交互の壁は左、右、左、右から発生します。1つだけ弾を抜いて隙間を作るため、プレイヤーは壁の隙間へ移動します。</p></div>
+<div class="chunk"><pre><code>for (let i = 0; i &lt; 3; i++) {
+  scheduled.push({ delay: i * .18,
+    run() { addBullet(400, 180, base, 170, "#fda4af"); } });
+}</code></pre><p>狙い撃ち連射は、同じ方向へ0.18秒ずつ遅れて3発出します。scheduledを使うと、1回のパターン関数から時間差のある攻撃を作れます。</p></div>
+<div class="chunk"><pre><code>scheduled.push({ delay: .45, run() {
+  radialBurst(20, gap);
+}});</code></pre><p>遅延リングは、予告なしで少し待ってから輪を出す練習用です。大きい攻撃にする場合は、ビームと同じようにwarning Objectを先に出すと公平になります。</p></div>
+<div class="chunk"><pre><code>const angle = fromLeft ? -.45 + i * .08 :
+  Math.PI + .45 - i * .08;
+addBullet(fromLeft ? -8 : WIDTH + 8, 80 + i * 24, angle, 135);</code></pre><p>左右スイープは、端から角度を少しずつ変えた12発を一度に出します。扇形に進むので、単純な横移動より広い範囲を覆います。</p></div>
+<h2>低速移動</h2>
+<div class="chunk"><pre><code>const speed = INPUT.onKey("Shift") ||
+  INPUT.onKey("KeyX") ? 105 : 260;</code></pre><p>ShiftまたはXを押している間だけ速度を105にします。押していない通常速度は260です。?:は条件がtrueなら左の値、falseなら右の値を選ぶ短いifです。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("ArrowLeft")) this.moveX(-speed * dt);
+if (INPUT.onKey("ArrowRight")) this.moveX(speed * dt);</code></pre><p>上下左右すべてで同じspeedを使うため、低速中は細かな位置調整ができます。弾幕の隙間へ入るときに低速を使う設計です。</p></div>
+<h2>後半の複合弾幕</h2>
+<div class="chunk"><pre><code>if (elapsed &gt;= 18) {
+  const savedIndex = patternIndex;
+  patternIndex = (patternIndex + 3) % patterns.length;</code></pre><p>18秒後は通常の弾幕を出したあと、3つ先の別パターンも選びます。先に現在の番号を保存するのは、2つ目を出したあと元の表示番号へ戻すためです。</p></div>
+<div class="chunk"><pre><code>spawnPattern();
+patternIndex = savedIndex;
+}</code></pre><p>同じ発生タイミングで別の弾幕も生成するため、放射と波、螺旋と雨のような組み合わせになります。画面右上には「+ 複合」と表示され、単独パターンではないことが分かります。</p></div>
+<h2>大きな攻撃の予告</h2>
+<div class="chunk"><pre><code>const warning = engine.addObject(world, new GameObject({
+  x, y: 48, shapes: [shape("path", { d: "M -14 0 L 0 -18 L 14 0 Z" })]
+}));</code></pre><p>ビームをすぐに出さず、発生位置の上側に黄色い三角形を置きます。プレイヤーはこの印を見て、ビームが落ちてくる場所を先に知ることができます。</p></div>
+<div class="chunk"><pre><code>scheduled.push({
+  delay: .65,
+  run() { warning.opacity = 0; /* beamを生成 */ }
+});</code></pre><p>scheduled配列に「0.65秒後に実行する処理」を保存します。毎フレームdelayを減らし、0以下になったら予告を消してビームを出します。</p></div>
+<div class="chunk"><pre><code>for (let i = scheduled.length - 1; i &gt;= 0; i--) {
+  scheduled[i].delay -= dt;
+  if (scheduled[i].delay &lt;= 0) scheduled[i].run();
+}</code></pre><p>後ろから配列を調べるのは、期限切れの要素を削除しても未処理の番号がずれにくくするためです。dtを使うので、フレーム数ではなく秒で予告時間を測れます。</p></div>
+<p>大きなビームを突然出すと、プレイヤーが避ける時間を失います。予告を先に見せることで、難しくても「見て判断できる」攻撃になります。今後は警告の点滅、危険区域の線、左右の安全色表示なども同じscheduled方式で追加できます。</p>
+<h2>図形とクラス</h2>
+<div class="chunk"><pre><code>import { Engine, Display, GameObject, INPUT } from "./engine.js";
+import { TextObject } from "./ui-objects.js";</code></pre><p>EngineとDisplay、動く物の基底GameObject、入力管理INPUT、文字表示TextObjectを読み込みます。</p></div>
+<div class="chunk"><pre><code>const NS = "http://www.w3.org/2000/svg";
+const square = (fill) =&gt; {</code></pre><p>SVG名前空間を<code>NS</code>に保存し、色<code>fill</code>を受け取って正方形を作る関数を定義しています。</p></div>
+<div class="chunk"><pre><code>const e = document.createElementNS(NS, "rect");
+Object.entries({ x: -9, y: -9, width: 18, height: 18, rx: 4, fill }).forEach(([k, v]) =&gt; e.setAttribute(k, v));</code></pre><p>18×18、角丸4のSVG rectを作ります。<code>Object.entries</code>で属性を順番に設定し、中心がObjectの座標になるようx/yを-9にしています。</p></div>
+<div class="chunk"><pre><code>class Player extends GameObject {
+  constructor(o) { super({ shapes: [shape("circle", { r: 13 })] }, o); }</code></pre><p>Playerは半径13の円です（このコードの<code>shape</code>は同じファイル冒頭のSVG要素作成関数です）。<code>o</code>で初期位置を渡します。</p></div>
+<div class="chunk"><pre><code>onUpdate(dt) {
+  if (INPUT.onKey("ArrowLeft")) this.moveX(-230 * dt);</code></pre><p>毎フレーム、押している間だけ左へ移動します。<code>dt</code>を掛けるのでフレーム数ではなく秒あたりの速度になります。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("ArrowRight")) this.moveX(230 * dt);
+if (INPUT.onKey("ArrowUp")) this.moveY(-230 * dt);</code></pre><p>右はX増加、上はSVG座標でY減少です。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("ArrowDown")) this.moveY(230 * dt);
+this.x = Math.max(15, Math.min(785, this.x));</code></pre><p>下へ動かし、Xを15〜785に制限します。</p></div>
+<div class="chunk"><pre><code>this.y = Math.max(15, Math.min(435, this.y));
+}}</code></pre><p>Yも15〜435に制限するため、プレイヤーは画面外へ出ません。</p></div>
+<div class="chunk"><pre><code>class Bullet extends GameObject {
+  constructor(overrides = {}) {
+    super({ radius: 6, shapes: [shape("circle", { r: 6 })] }, overrides);</code></pre><p>Bulletは弾の基底Objectです。radiusは衝突半径として使い、速度やビームなどの追加値はoverridesで受け取ります。</p></div>
+<div class="chunk"><pre><code>onUpdate(dt) {
+  this.move(this.vx * dt, this.vy * dt);</code></pre><p>弾は初期化時の<code>vx</code>（X速度）と<code>vy</code>（Y速度）で移動します。<code>move</code>は現在座標へ差分を足します。</p></div>
+<div class="chunk"><pre><code>if (this.wave) this.vy +=
+  Math.sin(this.age * 5 + this.phase) * 10 * dt;
+this.move(this.vx * dt, this.vy * dt);</code></pre><p>waveがtrueの弾はsinで上下速度を少し変えます。angularVelocityを持つ弾は速度ベクトルの角度も毎フレーム回転します。</p></div>
+<div class="chunk"><pre><code>if (this.x &lt; -50 || this.x &gt; WIDTH + 50 ||
+  this.y &lt; -50 || this.y &gt; HEIGHT + 50 || this.age &gt; 12)
+  this.opacity = 0;</code></pre><p>画面から十分離れた弾、または12秒を超えた弾を透明にします。配列から削除せず、opacityが0の弾を判定から除外する方式です。</p></div>
+<h2>初期状態と弾の出現</h2>
+<div class="chunk"><pre><code>const engine = new Engine(document.querySelector("#game"), 60, 800, 450);
+const world = engine.newDisplay(new Display("dodge", 800, 450, { background: "#3f1d4a" }));</code></pre><p>800×450のゲーム面を作ります。Engineのフレーム更新がDisplayと各Objectを更新します。</p></div>
+<div class="chunk"><pre><code>const status = engine.addObject(world, new TextObject("", { x: 20, y: 27 }));
+const patternView = engine.addObject(world,
+  new TextObject("", { x: WIDTH - 20, y: 27, anchor: "end" }));</code></pre><p>左上にスコアと残機、右上に現在の弾幕名を表示します。どちらもCanvas内のTextObjectです。</p></div>
+<div class="chunk"><pre><code>const bullets = [];
+const warnings = [];
+const scheduled = [];</code></pre><p>bulletsは飛んでいる弾、warningsは予告表示、scheduledは少し後に実行する攻撃を保存する配列です。</p></div>
+<div class="chunk"><pre><code>world.onUpdate = (dt) =&gt; {
+  const elapsed = (performance.now() - started) / 1000;</code></pre><p>worldの更新関数は毎フレーム呼ばれます。現在時刻との差を1000で割り、<code>elapsed</code>を秒にします。</p></div>
+<div class="chunk"><pre><code>function spawnPattern() {
+  const name = patterns[patternIndex];
+  if (name === "放射") radialBurst(20);</code></pre><p>現在の名前に対応する関数を呼びます。関数を分けることで、放射だけ、螺旋だけの計算を独立して読めます。</p></div>
+<div class="chunk"><pre><code>const interval = patternIndex === 1 ||
+  patternIndex === 5 ? .12 : .55;
+if (spawnClock &gt;= interval) spawnPattern();</code></pre><p>螺旋と回転十字は短い間隔で発生させ、それ以外は少し間隔を空けます。spawnClockをdtで増やし、一定値を超えたときだけ発生します。</p></div>
+<div class="chunk"><pre><code>b.element.setAttribute("fill", "#f8fafc");
+bullets.push(b); }</code></pre><p>弾の色を設定し、配列へ保存します。配列をfor...ofで後から調べられるようにする処理です。</p></div>
+<h2>後半の複合弾幕</h2>
+<div class="chunk"><pre><code>if (elapsed &gt;= 18) {
+  const savedIndex = patternIndex;
+  patternIndex = (patternIndex + 3) % patterns.length;</code></pre><p>18秒後は通常のパターンに加えて、3つ先のパターンも選びます。保存した番号は、2つ目を発生させた後に表示を元へ戻すために使います。</p></div>
+<div class="chunk"><pre><code>spawnPattern();
+patternIndex = savedIndex;
+}</code></pre><p>同じタイミングで2つの弾幕を発生させます。例えば放射と雨、螺旋とビームが同時に出るため、後半は安全な場所を早く見つける必要があります。</p></div>
+<h2>予告と大きな当たり判定</h2>
+<div class="chunk"><pre><code>const warning = engine.addObject(world, new GameObject({
+  x, y: 48, shapes: [shape("path", { d: "M -14 0 L 0 -18 L 14 0 Z" })]
+}));</code></pre><p>ビームをすぐに出さず、発生するx位置の上側へ黄色い三角形を置きます。見た目が大きく、避ける時間が必要な攻撃ほど、先に位置を知らせます。</p></div>
+<div class="chunk"><pre><code>scheduled.push({ delay: .65, run() {
+  warning.opacity = 0;
+  /* ここでビームを生成 */
+}});</code></pre><p>scheduledへ0.65秒後の処理を保存します。予告を消してからビームを生成するため、プレイヤーはマーカーが消える瞬間を攻撃開始の合図にできます。</p></div>
+<h2>衝突、残機、再開</h2>
+<div class="chunk"><pre><code>if (!bullet.opacity || hitCooldown &gt; 0) continue;
+const distance = Math.hypot(player.x - bullet.x, player.y - bullet.y);</code></pre><p>透明な弾は無視し、被弾直後の1秒はhitCooldownで連続判定を防ぎます。Math.hypotはx差とy差から直線距離を求めます。</p></div>
+<div class="chunk"><pre><code>if (distance &lt; (bullet.radius ?? 6) + 8) {
+  lives--;
+  hitCooldown = 1;</code></pre><p>弾の半径とプレイヤーの半径8を足した距離より近ければ衝突です。??はradiusが未設定なら6を使うという意味です。衝突したら残機を1減らします。</p></div>
+<div class="chunk"><pre><code>if (lives &lt;= 0) {
+  gameOver = true;
+  player.opacity = 0;</code></pre><p>残機が0になるとgameOverをtrueにします。次のフレームの先頭でreturnするため、弾幕とプレイヤーの更新が停止します。</p></div>
+<div class="chunk"><pre><code>restartButton.opacity = 1;
+restartButton.onClick = restart;</code></pre><p>ゲームオーバー時だけCanvas中央のボタンを表示します。クリックすると弾、時間、スコア、残機、弾幕番号を初期状態へ戻します。</p></div>
+<div class="chunk"><pre><code>engine.start();</code></pre><p>最後にゲームループを開始します。Playerの<code>onUpdate</code>、Bulletの<code>onUpdate</code>、worldの衝突・表示更新が毎フレーム順番に実行されます。</p></div>
+</main></body></html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Engine 詳細ドキュメント</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+    body { margin: 0; background: #0f172a; color: #e5e7eb; }
+    header, main { max-width: 1100px; margin: auto; padding: 1.25rem; }
+    header { border-bottom: 1px solid #334155; } h1 { margin-bottom: .25rem; }
+    h2 { margin-top: 2.5rem; color: #93c5fd; border-bottom: 1px solid #334155; padding-bottom: .35rem; }
+    h3 { color: #bfdbfe; } a { color: #7dd3fc; }
+    code, pre { background: #1e293b; border-radius: 4px; }
+    code { padding: .1rem .3rem; } pre { padding: 1rem; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { text-align: left; vertical-align: top; border-bottom: 1px solid #334155; padding: .65rem; }
+    th { color: #bfdbfe; } .note { background: #172554; border-left: 4px solid #60a5fa; padding: .8rem 1rem; }
+    .warning { background: #422006; border-left-color: #f59e0b; }
+    nav { display: flex; flex-wrap: wrap; gap: .75rem; } nav a { padding: .35rem .6rem; background: #1e293b; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ゲームエンジン詳細ドキュメント</h1>
+    <p>Canvasを表示領域、SVGをObjectの表示と当たり判定の基盤として使う、依存パッケージなしのブラウザ用エンジンです。</p>
+    <nav><a href="#concept">全体構造</a><a href="#engine">Engine</a><a href="#display">Display</a><a href="#object">GameObject</a><a href="#input">INPUT</a><a href="#collision">判定</a><a href="tests.html">機能別テストページ</a><a href="../index.html">サンプルゲーム</a></nav>
+  </header>
+  <main>
+    <section id="concept">
+      <h2>1. 全体構造と実行モデル</h2>
+      <p>ゲームは <code>Engine → Display → GameObject</code> の3階層です。Engineはフレーム時計と理論座標系を持ち、Displayは描画レイヤー、GameObjectはSVG形状とゲームロジックを持ちます。</p>
+      <pre><code>Engine {
+  logicalWidth, logicalHeight, dt
+  displays: [
+    Display { x, y, width, height, objects: [
+      GameObject { x, y, shapes, tags }
+    ] }
+  ]
+}</code></pre>
+      <p>座標はCSSピクセルではなく理論座標です。たとえば理論サイズを800×450にすると、Canvasが400×225でも1600×900でも同じゲーム範囲が縦横比を保って表示されます。余った部分はcontain表示の余白になります。</p>
+      <div class="note">Displayは理論範囲外にも配置できます。更新は続きますが、SVGの表示領域外にある部分は見えません。</div>
+    </section>
+
+    <section id="engine">
+      <h2>2. Engine</h2>
+      <h3>生成と開始</h3>
+      <pre><code>const engine = new Engine(canvas, 60, 800, 450);
+const world = engine.newDisplay(new Display("world", 800, 450));
+engine.start();
+// 停止: engine.stop()</code></pre>
+      <table><tr><th>API</th><th>引数 / 戻り値</th><th>役割</th></tr>
+        <tr><td><code>new Engine(canvas, fps, width, height)</code></td><td>Canvas要素、目標FPS、理論幅、高さ / Engine</td><td>SVGレイヤーをCanvasの親へ作り、論理座標系を初期化します。現状のフレームスケジューリングはrequestAnimationFrameです。</td></tr>
+        <tr><td><code>engine.newDisplay(display, x, y)</code></td><td>Display、論理x/y / Display</td><td>Displayを追加順に重ねます。x/yを省略するとDisplayの値を使います。</td></tr>
+        <tr><td><code>engine.addObject(display, object, overrides)</code></td><td>登録済みDisplay、GameObjectまたは定義、上書き値 / GameObject</td><td>ObjectをDisplayの最前面へ追加します。</td></tr>
+        <tr><td><code>engine.dt</code></td><td>秒数 / number</td><td>直前フレームからの経過時間。異常な長時間停止時は最大0.25秒に制限されます。</td></tr>
+        <tr><td><code>engine.start()</code> / <code>stop()</code></td><td>なし</td><td>開始時にonStartを実行し、以後毎フレーム更新します。二重startは無視します。</td></tr>
+      </table>
+    </section>
+
+    <section id="display">
+      <h2>3. Display</h2>
+      <p>Displayは一枚のSVG <code>&lt;g&gt;</code>レイヤーです。背景を持たせる場合は、そのレイヤーの先頭に矩形を置くため、後から追加したObjectの背面になります。</p>
+      <pre><code>const hud = new Display("hud", 300, 100, {
+  x: 20, y: 20,
+  background: "rgba(0, 0, 0, .5)",
+  onStart() { console.log("一度だけ"); },
+  onUpdate(dt) { /* 毎フレーム */ }
+});
+engine.newDisplay(hud);</code></pre>
+      <p><code>onStart</code>のthisはDisplay、<code>onUpdate</code>のthisもDisplayです。Display内のObjectには<code>this.objects</code>でアクセスできます。</p>
+      <div class="note">背景画像は現在の最小実装ではSVGの背景色を標準提供しています。画像背景はObjectとしてimage要素を追加する形にすると、同じ論理座標・描画順を利用できます。</div>
+    </section>
+
+    <section id="object">
+      <h2>4. GameObject</h2>
+      <h3>定義型と継承</h3>
+      <pre><code>class Enemy extends GameObject {
+  constructor(overrides = {}) {
+    super({ x: 100, y: 100, tags: ["enemy"], shapes: [makeCircle()] }, overrides);
+  }
+  onStart(engine) { /* 初回 */ }
+  onUpdate(dt, engine) {
+    this.moveX(40 * dt);
+  }
+}
+const enemy = engine.addObject(world, new Enemy({ x: 240 }));</code></pre>
+      <table><tr><th>プロパティ / API</th><th>詳細</th></tr>
+        <tr><td><code>x, y</code></td><td>Display内の論理位置。ObjectのSVGグループをtranslateします。</td></tr>
+        <tr><td><code>rotation</code></td><td>度数法の回転角。</td></tr>
+        <tr><td><code>scaleX, scaleY</code></td><td>拡大率。1が等倍。</td></tr>
+        <tr><td><code>opacity</code></td><td>0〜1を推奨する透明度。</td></tr>
+        <tr><td><code>mosaic</code></td><td>真の場合にモザイク用filterを設定するフック。高度な見た目はSVG filterを拡張してください。</td></tr>
+        <tr><td><code>shapes</code></td><td>SVGElementの配列。複数のcircle/rect/pathなどを1 Objectとしてまとめられます。</td></tr>
+        <tr><td><code>moveX(n), moveY(n)</code></td><td>各軸へ相対移動し、thisを返します。</td></tr>
+        <tr><td><code>moveTo(x, y)</code></td><td>絶対位置へ移動し、thisを返します。</td></tr>
+        <tr><td><code>move(x, y)</code></td><td>x/yの相対移動。</td></tr>
+        <tr><td><code>GameObject.fromAngleDistance(angle, distance)</code></td><td>角度を度数法で受け、<code>{x, y}</code>の移動量を返します。0度は右、90度は下方向です。</td></tr>
+        <tr><td><code>offsetFromAngle(angle, distance)</code></td><td>角度と距離でObject自身を相対移動します。</td></tr>
+      </table>
+    </section>
+
+    <section id="input">
+      <h2>5. キーボード入力 INPUT</h2>
+      <p>Engineから独立した共有入力状態です。キーイベントはwindowで購読します。入力フォーカスがiframeや別ウィンドウに移った場合、blur時に押下状態をクリアします。</p>
+      <pre><code>import { INPUT } from "./engine.js";
+onUpdate(dt) {
+  if (INPUT.onKey("ArrowLeft")) this.moveX(-200 * dt);
+  if (INPUT.pressed("Space")) this.jump();
+  if (INPUT.released("Space")) this.stopJump();
+}</code></pre>
+      <table><tr><th>API</th><th>判定タイミング</th><th>例</th></tr>
+        <tr><td><code>INPUT.onKey(keyid)</code></td><td>押されている全フレーム</td><td><code>"ArrowLeft"</code>, <code>"Space"</code>, <code>"a"</code>, <code>"KeyA"</code></td></tr>
+        <tr><td><code>INPUT.pressed(keyid)</code></td><td>keydownが発生したフレーム</td><td>一回だけのジャンプ開始</td></tr>
+        <tr><td><code>INPUT.released(keyid)</code></td><td>keyupが発生したフレーム</td><td>チャージ攻撃の解放</td></tr>
+      </table>
+      <div class="warning">ブラウザの予約キーやIME入力はOS・ブラウザの影響を受けます。ゲーム操作には矢印キー、Space、英数字のcodeを推奨します。</div>
+    </section>
+
+    <section id="collision">
+      <h2>6. タグ検索と接触判定</h2>
+      <pre><code>const targets = player.getObject("enemy");
+const allTagged = player.getObject(["enemy", "active"]);
+const touching = player.touching("enemy");
+if (player.touchTag("enemy")) { /* 接触中 */ }</code></pre>
+      <p><code>getObject</code>は同じDisplay内のObjectだけを対象にします。配列を渡すと、指定した全タグを持つObjectを返します。自分自身は接触結果から除外されます。</p>
+      <p>判定は各Objectの<code>shapes</code>を要素単位で走査し、SVGの変換済み境界矩形が重なるかを確認します。複数形状のうち一組でも重なればObject同士が接触した扱いです。</p>
+      <div class="warning">現在は境界矩形による近似です。斜め形状やpathの空白部分も矩形内として当たる場合があります。厳密な輪郭判定が必要なゲームでは形状専用の判定関数を追加してください。</div>
+    </section>
+
+    <section id="ui-objects">
+      <h2>7. 標準UI Objectと継承</h2>
+      <p><a href="../ui-objects.js">ui-objects.js</a>には、よく使う見た目を持った派生クラスがあります。通常のGameObjectと同じように<code>engine.addObject</code>で追加でき、プロパティを変更してからさらに継承できます。</p>
+      <pre><code>import { TextObject, BarObject, ButtonObject } from "./ui-objects.js";
+
+const title = engine.addObject(display, new TextObject("タイトル", {
+  x: 40, y: 60, fontSize: 32, color: "#ffffff"
+}));
+const hp = engine.addObject(display, new BarObject({
+  x: 40, y: 90, width: 240, value: .75, fill: "#22c55e"
+}));
+const start = engine.addObject(display, new ButtonObject("開始", {
+  x: 40, y: 140, shadow: true, hoverScale: 1.05
+}));
+start.onClick = () =&gt; console.log("clicked");</code></pre>
+      <table><tr><th>クラス</th><th>主なプロパティ</th><th>動作</th></tr>
+        <tr><td><code>TextObject</code></td><td><code>text</code>, <code>fontSize</code>, <code>fontFamily</code>, <code>color</code>, <code>anchor</code></td><td>SVG textを表示します。毎フレーム<code>text</code>を書き換えれば時計やスコア表示になります。</td></tr>
+        <tr><td><code>BarObject</code></td><td><code>width</code>, <code>height</code>, <code>value</code>, <code>fill</code>, <code>background</code>, <code>radius</code></td><td><code>value</code>を0〜1に制限して、背景と進捗矩形を表示します。</td></tr>
+        <tr><td><code>ButtonObject</code></td><td><code>label</code>, <code>shadow</code>, <code>background</code>, <code>hoverBackground</code>, <code>pressedBackground</code>, <code>hoverScale</code>, <code>hoverLift</code>, <code>onClick</code></td><td>pointerenter/leave/down/upを使い、hover補間、押下色、クリックコールバックを提供します。影は<code>shadow: false</code>で消せます。</td></tr>
+      </table>
+      <p>実際の見た目と操作は<a href="tests.html">Object実例ギャラリー</a>で確認できます。影あり、影なし、色変化、拡大、浮き上がり、縮小、押下色の例を切り替えられます。</p>
+    </section>
+
+    <section id="editor">
+      <h2>8. コードエディター</h2>
+      <p><a href="tests.html">機能別テストページ</a>は既成テスト専用です。自由にEngineコードを書き換えて試す場合は、Monaco Editorを備えた<a href="editor.html">コードエディターページ</a>を利用してください。</p>
+      <p>ES Moduleを使うため、<code>file://</code>直開きではなく静的サーバーを使います。外部CDNからMonacoを読み込むため、初回表示時はネットワーク接続が必要です。</p>
+    </section>
+  </main>
+</body>
+</html>

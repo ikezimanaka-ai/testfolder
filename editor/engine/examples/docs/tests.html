@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Engine Object Examples</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #e5e7eb; }
+    header, main { max-width: 1280px; margin: auto; padding: 1rem; }
+    header { border-bottom: 1px solid #334155; } h1, h2 { color: #bfdbfe; }
+    #layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 1rem; align-items: start; }
+    #stage { width: 100%; aspect-ratio: 16 / 9; position: sticky; top: 1rem; border: 1px solid #64748b; background: #020617; }
+    canvas { width: 100%; height: 100%; display: block; }
+    #examples { display: grid; gap: .65rem; }
+    .example { text-align: left; padding: .8rem; border: 1px solid #475569; border-radius: 8px; background: #111c31; color: inherit; cursor: pointer; }
+    .example:hover, .example.active { border-color: #60a5fa; background: #172554; }
+    .example strong, .example small { display: block; } .example small { color: #cbd5e1; margin-top: .25rem; }
+    #status { min-height: 1.5rem; color: #86efac; margin: .75rem 0; }
+    code { background: #1e293b; padding: .1rem .3rem; } a { color: #7dd3fc; }
+    @media (max-width: 850px) { #layout { grid-template-columns: 1fr; } #stage { position: static; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>継承Objectの実例ギャラリー</h1>
+    <p>左のCanvasで選択したObjectを実行し、右の一覧から例を切り替えます。UI Objectは<a href="ui-objects.js">ui-objects.js</a>からimportして継承できます。</p>
+    <p><a href="docs.html">詳細ドキュメント</a> / <a href="editor.html">Monaco Editor</a> / <a href="../index.html">基本サンプル</a></p>
+  </header>
+  <main id="layout">
+    <div>
+      <div id="stage"><canvas id="test-canvas" tabindex="0" aria-label="Object example canvas"></canvas></div>
+      <div id="status">右側の例を選択してください。</div>
+    </div>
+    <aside>
+      <h2>例の一覧</h2>
+      <div id="examples">
+        <button class="example active" data-example="all"><strong>全部表示</strong><small>文字・バー・ボタンを同時に表示</small></button>
+        <button class="example" data-example="text"><strong>文字Object</strong><small>TextObjectの色、サイズ、位置、更新</small></button>
+        <button class="example" data-example="bar"><strong>バーObject</strong><small>BarObjectのvalueを毎フレーム変更</small></button>
+        <button class="example" data-example="button-shadow"><strong>ボタン：影あり</strong><small>hover時の拡大＋浮き上がり</small></button>
+        <button class="example" data-example="button-flat"><strong>ボタン：影なし</strong><small>hover時の色変化</small></button>
+        <button class="example" data-example="button-press"><strong>ボタン：押下アニメーション</strong><small>hover時の縮小とpressed色</small></button>
+        <button class="example" data-example="inherit"><strong>継承Object</strong><small>TextObjectを継承したカスタムObject</small></button>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="../tests.js"></script>
+</body>
+</html>

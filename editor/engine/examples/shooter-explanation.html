@@ -1,0 +1,78 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>シューターの解説</title><link rel="stylesheet" href="./game-example.css"></head><body><header><h1>ミニシューター：コードの読み方</h1><nav><a href="./shooter.html">ゲームで遊ぶ</a></nav></header><main class="explanation">
+<p>矢印キーで船を動かし、Spaceを長押しして右向きに弾を連射します。敵は右端から左へ速く進みます。</p>
+<h2>エンジンとSVG形状</h2>
+<div class="chunk"><pre><code>import { Engine, Display, GameObject, INPUT } from "./engine.js";
+import { TextObject, BarObject, ButtonObject } from "./ui-objects.js";</code></pre><p><code>Engine</code>はフレーム処理、<code>Display</code>はゲーム面、<code>GameObject</code>は動く物、<code>INPUT</code>はキー状態です。文字、体力バー、再スタートボタンもUI Objectとして読み込みます。</p></div>
+<div class="chunk"><pre><code>const NS = "http://www.w3.org/2000/svg";
+const shape = (name, attrs) =&gt; {</code></pre><p>SVG要素を作るための名前空間を<code>NS</code>に保存し、<code>shape</code>関数を用意します。<code>name</code>はpolygonやcircle、<code>attrs</code>は属性のオブジェクトです。</p></div>
+<div class="chunk"><pre><code>const node = document.createElementNS(NS, name);
+for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);</code></pre><p><code>Object.entries</code>で属性をキーと値の組に分解し、SVGノードへ設定して返します。</p></div>
+<h2>船・弾・敵のクラス</h2>
+<div class="chunk"><pre><code>class Ship extends GameObject {
+  constructor(overrides = {}) {</code></pre><p><code>Ship</code>はGameObjectを継承した船です。<code>overrides</code>は位置などを呼び出し側から上書きするオブジェクトで、既定値は空です。</p></div>
+<div class="chunk"><pre><code>super({ tags: ["ship"], shapes: [shape("polygon", { points: "0,-16 22,16 0,9 -22,16" })] }, overrides);
+}</code></pre><p><code>super</code>で親を初期化し、タグ<code>ship</code>と4点のpolygon形状を渡します。Engineはこの形状をSVGの<code>g</code>内に置き、<code>x,y</code>へ移動します。</p></div>
+<div class="chunk"><pre><code>onUpdate(dt) {
+  if (INPUT.onKey("ArrowLeft")) this.moveX(-260 * dt);</code></pre><p><code>onUpdate</code>はDisplayが毎フレーム呼ぶメソッドです。<code>onKey</code>は押している間true、<code>dt</code>は前フレームからの秒数なので、速度を時間に掛けて移動します。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("ArrowRight")) this.moveX(260 * dt);
+if (INPUT.onKey("ArrowUp")) this.moveY(-260 * dt);</code></pre><p>右はXを増やし、上はSVG座標のYを減らします。船のpolygonは先端が右を向く形です。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("ArrowDown")) this.moveY(260 * dt);
+this.x = Math.max(25, Math.min(775, this.x));</code></pre><p>下はYを増やし、Xを25〜775に制限します。<code>Math.min</code>と<code>Math.max</code>の組み合わせで画面外へ出ません。</p></div>
+<div class="chunk"><pre><code>this.y = Math.max(55, Math.min(425, this.y));
+}}</code></pre><p>Yも55〜425に制限します。船の<code>onUpdate</code>には衝突処理を置かず、後でworld全体がまとめて判定します。</p></div>
+<div class="chunk"><pre><code>class Shot extends GameObject {
+  constructor(overrides = {}) { super({ tags: ["shot"], shapes: [shape("rect", { x: -3, y: -10, width: 6, height: 20, rx: 3 })] }, overrides); }</code></pre><p><code>Shot</code>は縦長のrectです。形状のx/yが中心からの相対位置なので、発射位置を弾の中心として描けます。</p></div>
+<div class="chunk"><pre><code>onUpdate(dt) {
+  this.moveX(560 * dt);
+  if (this.x &gt; 820) this.opacity = 0;</code></pre><p>弾は毎フレーム右へ進み、画面右端より外れたら透明になります。</p></div>
+<div class="chunk"><pre><code>super({ tags: ["enemy"], shapes: [shape("circle", { r: 18 })],
+  hp: 6, maxHp: 6, speed: 230, hitCooldown: 0 }, overrides);</code></pre><p>敵は円、体力<code>hp</code>と最大体力<code>maxHp</code>、左へ進む速度<code>speed</code>を持ちます。6発で倒せます。</p></div>
+<div class="chunk"><pre><code>this.moveX(-this.speed * dt);
+this.hitCooldown = Math.max(0, this.hitCooldown - dt);</code></pre><p>敵は毎フレーム左へ移動し、接触待ち時間を0まで減らします。</p></div>
+<div class="chunk"><pre><code>if (this.x &lt; -40) this.reset();
+reset() { this.x = 840 + Math.random() * 180; this.y = 70 + Math.random() * 320; }</code></pre><p>画面左へ出た敵は、画面右外から再出現します。Yだけランダムに変えます。</p></div>
+<div class="chunk"><pre><code>this.hp = this.maxHp; this.opacity = 1;
+this.hitCooldown = 0;</code></pre><p>リセット時に体力、透明度、接触待ちも初期化するため、倒した敵も再出現できます。</p></div>
+<h2>初期化、配列、UI</h2>
+<div class="chunk"><pre><code>const engine = new Engine(document.querySelector("#game"), 60, 800, 450);
+const world = engine.newDisplay(new Display("space", 800, 450, { background: "#020617" }));</code></pre><p>canvasからEngineを作り、800×450のspace面を登録します。</p></div>
+<div class="chunk"><pre><code>const ship = engine.addObject(world, new Ship({ x: 400, y: 390 }));
+ship.element.setAttribute("fill", "#67e8f9");</code></pre><p>船を中央下へ追加し、作成済みSVG要素の塗り色を設定します。</p></div>
+<div class="chunk"><pre><code>const enemies = [];
+for (let i = 0; i &lt; 6; i++) {</code></pre><p><code>enemies</code>配列に6体を保存します。<code>i</code>は0〜5で、同じ初期化をforで繰り返します。</p></div>
+<div class="chunk"><pre><code>const enemy = engine.addObject(world, new Enemy({ x: 70 + i * 130, y: 55 + (i % 2) * 70 }));
+enemy.hpBar = engine.addObject(world, new BarObject({ x: enemy.x - 22, y: enemy.y + 25, width: 44, height: 6, value: 1, fill: "#ef4444", background: "#450a0a", radius: 2 }));</code></pre><p>敵を横に並べ、<code>i % 2</code>で2段にします。各敵に体力バーを追加し、敵自身のプロパティ<code>hpBar</code>へ参照を保存します。</p></div>
+<div class="chunk"><pre><code>enemies.push(enemy);
+} const shots = [];</code></pre><p><code>push</code>で敵を配列へ追加します。<code>shots</code>も発射した弾を保持する配列で、透明化した弾も残ります。</p></div>
+<div class="chunk"><pre><code>let score = 0, lives = 3, cooldown = 0;
+let gameOver = false; let restartButton;</code></pre><p><code>score</code>は撃破数、<code>lives</code>は残りミス、<code>cooldown</code>は連射間隔、<code>gameOver</code>は終了状態です。</p></div>
+<h2>再スタートとフレーム更新</h2>
+<div class="chunk"><pre><code>function restart() {
+  score = 0; lives = 3; gameOver = false; ship.opacity = 1;</code></pre><p>再スタートは数値と終了状態を初期化し、船を表示します。</p></div>
+<div class="chunk"><pre><code>ship.moveTo(100, 225);
+for (const enemy of enemies) enemy.reset();</code></pre><p>船を開始位置へ戻し、敵配列をfor...ofで全員リセットします。</p></div>
+<div class="chunk"><pre><code>for (const shot of shots) shot.opacity = 0;
+restartButton.opacity = 0; setStatus("撃破: 0　（矢印キー + Space）");</code></pre><p>残っている弾を透明にし、再スタートボタンを隠します。配列を空にするのではなく再利用可能な状態にしています。</p></div>
+<div class="chunk"><pre><code>world.onUpdate = (dt) =&gt; {
+  if (gameOver) return; cooldown -= dt;</code></pre><p>Displayの更新関数は毎フレーム実行されます。ゲームオーバーなら全処理を止め、そうでなければ連射待ちを減らします。</p></div>
+<div class="chunk"><pre><code>if (INPUT.onKey("Space") &amp;&amp; cooldown &lt;= 0) {
+  const shot = engine.addObject(world, new Shot({ x: ship.x + 25, y: ship.y }));</code></pre><p><code>onKey</code>は押している間ずっとtrueです。短い待ち時間を使うので、Space長押しで連射になります。</p></div>
+<div class="chunk"><pre><code>shots.push(shot); cooldown = .18;
+}</code></pre><p>弾を配列へ保存し、次の発射まで0.18秒待ちます。</p></div>
+<div class="chunk"><pre><code>for (const enemy of enemies) {
+  enemy.hpBar.moveTo(enemy.x - 22, enemy.y + 25);</code></pre><p>毎フレーム敵ごとに体力バーを敵へ追従させます。</p></div>
+<div class="chunk"><pre><code>enemy.hpBar.value = enemy.hp / enemy.maxHp;
+if (enemy.hp &lt;= 0) enemy.reset();</code></pre><p>体力割合をバーへ渡し、0以下なら倒した敵を即リセットします。</p></div>
+<div class="chunk"><pre><code>if (enemy.opacity &amp;&amp; Math.hypot(ship.x - enemy.x, ship.y - enemy.y) &lt; 30 &amp;&amp; enemy.hitCooldown &lt;= 0) {
+  enemy.hitCooldown = 1; lives--;</code></pre><p>透明でない敵との距離が30未満なら船との接触です。<code>Math.hypot</code>はX/Y差から距離を求め、1秒の待ちを設定してミスを1減らします。</p></div>
+<div class="chunk"><pre><code>ship.x = 400; ship.y = 390;
+if (lives &lt;= 0) { gameOver = true; ship.opacity = 0; }</code></pre><p>接触後は船を開始位置へ戻します。残りミスが0ならゲームオーバー状態にし、船を隠します。</p></div>
+<div class="chunk"><pre><code>restartButton.opacity = 1;
+setStatus(`ゲームオーバー　スコア: ${score}`); }</code></pre><p>再スタートボタンを表示し、最終スコアを表示します。ボタンのクリックイベントは後で<code>restartButton.onClick = restart</code>として接続されています。</p></div>
+<div class="chunk"><pre><code>for (const shot of shots) {
+  if (!shot.opacity) continue;</code></pre><p>透明な弾は<code>continue</code>で飛ばします。表示中の弾だけ敵との衝突を調べます。</p></div>
+<div class="chunk"><pre><code>if (enemy.opacity &amp;&amp; Math.hypot(shot.x - enemy.x, shot.y - enemy.y) &lt; 25) {
+  shot.opacity = 0; enemy.hp--; if (enemy.hp &lt;= 0) score++;</code></pre><p>表示中の敵との距離が25未満なら命中です。弾を消し、体力を1減らし、0以下になった瞬間だけ撃破数を増やします。</p></div>
+<div class="chunk"><pre><code>setStatus(`撃破: ${score}　（矢印キー + Space）`);
+livesText.text = `残りミス: ${lives}`;</code></pre><p>各フレームの最後にステータスと残りミスを更新します。最後に<code>engine.start()</code>がrequestAnimationFrameのループを開始し、各Objectの<code>onUpdate</code>とworldの更新を繰り返します。</p></div>
+</main></body></html>

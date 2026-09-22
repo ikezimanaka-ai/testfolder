@@ -1,0 +1,11 @@
+import { Engine, Display, GameObject, INPUT } from "../engine.js";
+import { TextObject } from "../ui-objects.js";
+const NS = "http://www.w3.org/2000/svg", square = (fill) => { const e = document.createElementNS(NS, "rect"); Object.entries({ x: -9, y: -9, width: 18, height: 18, rx: 4, fill }).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
+const engine = new Engine(document.querySelector("#game"), 60, 800, 450), world = engine.newDisplay(new Display("snake", 800, 450, { background: "#052e2b" })), status = engine.addObject(world, new TextObject("スコア: 0　（矢印キー）", { x: 20, y: 30, fontSize: 18, color: "#bbf7d0" }));
+const body = [], grid = 18, cols = 40, rows = 22; let direction = { x: 1, y: 0 }, next = direction, food = { x: 25, y: 10 }, timer = 0, score = 0;
+for (let i = 0; i < 100; i++) { const part = engine.addObject(world, new GameObject({ x: -100, y: -100, shapes: [square("#4ade80")] })); body.push(part); }
+const foodObject = engine.addObject(world, new GameObject({ shapes: [square("#fb7185")] }));
+const positions = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+function placeFood() { food = { x: 2 + Math.floor(Math.random() * (cols - 4)), y: 2 + Math.floor(Math.random() * (rows - 4)) }; }
+world.onUpdate = (dt) => { if (INPUT.pressed("ArrowUp") && direction.y === 0) next = { x: 0, y: -1 }; if (INPUT.pressed("ArrowDown") && direction.y === 0) next = { x: 0, y: 1 }; if (INPUT.pressed("ArrowLeft") && direction.x === 0) next = { x: -1, y: 0 }; if (INPUT.pressed("ArrowRight") && direction.x === 0) next = { x: 1, y: 0 }; timer += dt; if (timer < .13) return; timer = 0; direction = next; const head = { x: positions[0].x + direction.x, y: positions[0].y + direction.y }; if (head.x < 1 || head.x >= cols - 1 || head.y < 1 || head.y >= rows - 1 || positions.some((p) => p.x === head.x && p.y === head.y)) { positions.splice(0, positions.length, { x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }); direction = { x: 1, y: 0 }; next = direction; score = 0; } else { positions.unshift(head); if (head.x === food.x && head.y === food.y) { score++; placeFood(); } else positions.pop(); } body.forEach((part, i) => { const p = positions[i]; part.opacity = p ? 1 : 0; if (p) part.moveTo(p.x * grid, p.y * grid); }); foodObject.moveTo(food.x * grid, food.y * grid); status.text = `スコア: ${score}　（矢印キー）`; };
+engine.start();

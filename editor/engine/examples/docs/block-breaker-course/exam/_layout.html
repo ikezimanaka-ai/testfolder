@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ chapter_title }} | Build Game Docs</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='build_game/docs.css') }}">
+</head>
+
+<body>
+    <main class="docs-shell">
+        <div class="docs-topbar">
+            <div class="docs-breadcrumb">
+                <a href="{{ url_for('build_game.build_redirect') }}">Build Game Create</a>
+                /
+                <a href="{{ url_for('build_game.build_docs_index') }}">Docs</a>
+                /
+                <span>{{ chapter_title }}</span>
+            </div>
+            <a class="docs-home-link" href="{{ url_for('build_game.build_redirect') }}">Create へ戻る</a>
+        </div>
+
+        <div class="docs-layout">
+            <article class="docs-main">
+                <p class="chapter-kicker">Build Game Docs</p>
+                <h1 class="chapter-title">{{ chapter_title }}</h1>
+                <p class="chapter-summary">{{ chapter_summary }}</p>
+
+                <div class="chapter-body">
+                    {% block chapter_content %}{% endblock %}
+                </div>
+
+                <div class="chapter-footer-nav">
+                    {% if prev_slug %}
+                    <a class="footer-link" href="{{ url_for('build_game.build_docs_page', slug=prev_slug) }}">
+                        <span class="footer-link-label">Previous</span>
+                        <span class="footer-link-title">{{ prev_title }}</span>
+                    </a>
+                    {% else %}
+                    <div class="footer-link disabled">
+                        <span class="footer-link-label">Previous</span>
+                        <span class="footer-link-title">この章が最初です</span>
+                    </div>
+                    {% endif %}
+
+                    {% if next_slug %}
+                    <a class="footer-link" href="{{ url_for('build_game.build_docs_page', slug=next_slug) }}">
+                        <span class="footer-link-label">Next</span>
+                        <span class="footer-link-title">{{ next_title }}</span>
+                    </a>
+                    {% else %}
+                    <div class="footer-link disabled">
+                        <span class="footer-link-label">Next</span>
+                        <span class="footer-link-title">この章が最後です</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <aside class="docs-aside">
+                <div class="aside-block">
+                    <h2 class="aside-title">Chapter Index</h2>
+                    <div class="chapter-links">
+                        {% for page in docs_pages %}
+                        <a class="chapter-link {% if page.slug == current_slug %}active{% endif %}"
+                            href="{{ url_for('build_game.build_docs_page', slug=page.slug) }}">
+                            {{ page.title }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="aside-block">
+                    <h2 class="aside-title">Function Index</h2>
+                    <div class="anchor-links">
+                        {% include "build_game/docs/_function_index.html" %}
+                    </div>
+                </div>
+
+                <div class="aside-block">
+                    <h2 class="aside-title">In This Chapter</h2>
+                    <div class="anchor-links">
+                        {% block anchor_links %}{% endblock %}
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+    <script src="{{ url_for('static', filename='build_game/base.js') }}"></script>
+    <script src="{{ url_for('static', filename='build_game/docs.js') }}"></script>
+</body>
+
+</html>

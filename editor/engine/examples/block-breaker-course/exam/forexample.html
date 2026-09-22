@@ -1,0 +1,87 @@
+{% extends "build_game/docs/_layout.html" %}
+{% set current_slug = "01-overview" %}
+{% set chapter_title = "1. 基本クラスと最初の起動" %}
+{% set chapter_summary = "この章では、まずエンジン全体の見取り図を作ります。Game・Scene・GameObject がどういう関係で動くのか、そして最初に何を呼べばゲームが始まるのかを押さえます。" %}
+{% set prev_slug = none %}
+{% set prev_title = none %}
+{% set next_slug = "02-scene" %}
+{% set next_title = "2. Scene の定義と Scene 変数" %}
+
+{% block anchor_links %}
+<a class="anchor-link" href="#class-relationship">3つの基本クラス<small>Game / Scene / GameObject の関係</small></a>
+<a class="anchor-link" href="#game-properties">重要プロパティ<small><code>currentScene</code> や <code>dt</code> の意味</small></a>
+<a class="anchor-link" href="#func-gameengine-constructor"><code>GameEngine.constructor()</code><small><code>Game</code> が最初に持つ状態</small></a>
+<a class="anchor-link" href="#func-game-init"><code>Game.init(canvasId, debug, options)</code><small>起動の入口</small></a>
+<a class="anchor-link" href="#func-game-setscene"><code>Game.setScene(scene)</code><small>現在の Scene を切り替える</small></a>
+{% endblock %}
+
+{% block chapter_content %}
+<section id="class-relationship" class="chapter-section">
+    <h2>Game・Scene・GameObject の関係</h2>
+    <p><code>Game</code> はゲーム全体の進行係です。Canvas の初期化、毎フレームの更新、現在の Scene の描画を担当します。<code>Scene</code> はその中にいるオブジェクトをまとめる舞台で、<code>GameObject</code> はプレイヤーや敵や弾のような役者です。</p>
+    <p>流れとしては、まず <code>Game.init()</code> でエンジンを起動し、次に <code>new Scene()</code> で舞台を作り、最後に <code>Game.setScene(scene)</code> でその舞台を現在の場面として渡します。</p>
+    <pre class="code-sample"><code>Game.init("gameCanvas", true, {
+    width: 600,
+    height: 400,
+    backgroundColor: "#050b16"
+});
+
+const mainScene = new Scene();
+mainScene.add(new Player(80, 200));
+Game.setScene(mainScene);</code></pre>
+</section>
+
+<section id="game-properties" class="chapter-section">
+    <h2>Game の重要プロパティ</h2>
+    <p>関数だけでなく、<code>Game</code> が持っている重要な状態も理解しておくと読みやすくなります。特に <code>currentScene</code> は、ほぼすべてのゲームロジックが間接的に頼っている中心のプロパティです。</p>
+    <ul>
+        <li><code>currentScene</code>: いま更新・描画の対象になっている Scene です。<code>Game.setScene(scene)</code> で差し替えます。<code>GameObject.getCollidingObject()</code> やサンプルの検索処理は、ここを通して Scene 内の他オブジェクトを見ます。</li>
+        <li><code>dt</code>: 前フレームからの経過秒数です。<code>Game.loop()</code> の中で更新され、速度を秒単位で扱う基準になります。</li>
+        <li><code>width</code> / <code>height</code>: ゲーム内部の論理解像度です。オブジェクト配置や UI 位置は基本的にこれを基準にします。</li>
+        <li><code>debugMode</code>: 当たり判定の赤枠を描くかどうかのフラグです。<code>Game.init(..., true)</code> で有効になります。</li>
+        <li><code>backgroundColor</code>: 毎フレーム背景を塗る色です。</li>
+        <li><code>canvas</code> / <code>ctx</code>: 実際の描画先 Canvas と 2D 描画コンテキストです。</li>
+        <li><code>global</code>: Scene をまたいで共有したい値を入れるためのオブジェクトです。</li>
+    </ul>
+    <p>とくに <code>Game.currentScene</code> は、「いまの舞台そのもの」を指します。サンプルではプレイヤーやボスが <code>Game.currentScene.objects</code> を検索して他の相手を見つけ、<code>Game.currentScene.vars</code> を更新してスコアや演出状態を共有しています。</p>
+</section>
+
+<section class="chapter-section">
+    <h2>Game 側の最初の API</h2>
+
+    <div id="func-gameengine-constructor" class="function-block">
+        <h3><code>GameEngine.constructor()</code></h3>
+        <p><code>Game</code> は内部的に <code>new GameEngine()</code> で1回だけ作られます。このコンストラクタでは、Canvas の参照、現在 Scene、論理解像度、描画ループの状態、拡大率、背景色など、ゲーム全体で使う土台の値を初期化します。</p>
+        <ul>
+            <li>引数: なし。</li>
+            <li>主な初期値: <code>canvas = null</code>、<code>currentScene = null</code>、<code>width = 600</code>、<code>height = 400</code>、<code>debugMode = false</code>。</li>
+            <li>使い方: ユーザーが直接呼ぶ関数ではなく、内部で最初に1回だけ使われます。</li>
+        </ul>
+    </div>
+
+    <div id="func-game-init" class="function-block">
+        <h3><code>Game.init(canvasId, debug = false, options = {})</code></h3>
+        <p>このエンジンを実際に起動するための入口です。Canvas を探し、2D コンテキストを取得し、入力管理を初期化し、リサイズ監視を設定し、最後に描画ループを開始します。</p>
+        <ul>
+            <li><code>canvasId</code>: HTML 上の <code>&lt;canvas&gt;</code> の <code>id</code> を文字列で渡します。例: <code>"gameCanvas"</code>。</li>
+            <li><code>debug</code>: <code>true</code> ならデバッグモードで起動します。<code>GameObject.draw()</code> の標準処理を使うと当たり判定枠が見えます。</li>
+            <li><code>options</code>: 起動オプションをまとめたオブジェクトです。指定しない項目は既定値を使います。</li>
+            <li><code>options.width</code>: ゲーム内部の論理解像度の横幅です。省略時は現在の <code>Game.width</code> を使います。</li>
+            <li><code>options.height</code>: ゲーム内部の論理解像度の縦幅です。省略時は現在の <code>Game.height</code> を使います。</li>
+            <li><code>options.backgroundColor</code>: 毎フレームの背景塗りつぶし色です。省略時は現在の背景色を使います。</li>
+            <li>戻り値: なし。</li>
+        </ul>
+        <p>この関数を呼ぶと、以前のループが残っていれば最初に <code>stop()</code> で止めてから起動し直します。再実行ボタンが作りやすいのはこのためです。</p>
+    </div>
+
+    <div id="func-game-setscene" class="function-block">
+        <h3><code>Game.setScene(scene)</code></h3>
+        <p>いま描画と更新の対象にする Scene を設定します。以後の毎フレーム処理では、この Scene の <code>update(dt)</code> と <code>draw(ctx)</code> が呼ばれます。</p>
+        <ul>
+            <li><code>scene</code>: 現在の場面として使いたい <code>Scene</code> インスタンスを渡します。</li>
+            <li>戻り値: なし。</li>
+        </ul>
+        <p>タイトル画面から本編、ゲームオーバー画面からリトライ、といった場面切り替えもこの関数で行います。</p>
+    </div>
+</section>
+{% endblock %}

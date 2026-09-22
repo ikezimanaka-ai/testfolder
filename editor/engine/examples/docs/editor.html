@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Engine Monaco Editor</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #111827; color: #e5e7eb; }
+    header { padding: 1rem; border-bottom: 1px solid #374151; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+    button, .file-input-label { padding: .55rem 1rem; margin-top: .5rem; border: 1px solid #4b5563; border-radius: 6px; background: #1f2937; color: #e5e7eb; cursor: pointer; }
+    .file-input-label { display: inline-block; position: relative; overflow: hidden; }
+    .file-input-label input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    #editor-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; padding: 1rem; }
+    #sidebar { border: 1px solid #4b5563; background: #0f172a; border-radius: 8px; padding: .75rem; }
+    #file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+    #file-list button { width: 100%; text-align: left; }
+    #file-list button.active { background: #1d4ed8; border-color: #60a5fa; }
+    #editor, iframe { height: 70vh; min-height: 420px; border: 1px solid #4b5563; }
+    iframe { width: 100%; background: white; }
+    #status { margin-left: .75rem; color: #86efac; }
+    @media (max-width: 980px) { #editor-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Monaco EditorでEngineを実行</h1>
+    <p><a href="docs.html">詳細ドキュメント</a> / <a href="tests.html">機能別テスト</a> / <a href="../../index.html">サンプルゲーム</a></p>
+    <div class="toolbar">
+      <button id="run">実行</button>
+      <button id="save-json">保存</button>
+      <button id="download-json">JSONダウンロード</button>
+      <label class="file-input-label">JSON読込<input id="load-json" type="file" accept="application/json,.json" /></label>
+      <button id="new-file">ファイル追加</button>
+      <span id="status"></span>
+    </div>
+  </header>
+  <div id="editor-layout">
+    <aside id="sidebar">
+      <h2>Files</h2>
+      <ul id="file-list"></ul>
+    </aside>
+    <div id="editor"></div>
+    <iframe id="preview" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script type="module" src="../editor-page.js"></script>
+</body>
+</html>

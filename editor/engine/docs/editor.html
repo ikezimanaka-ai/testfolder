@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Engine Monaco Editor</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #111827; color: #e5e7eb; }
+    header { padding: 1rem; border-bottom: 1px solid #374151; }
+    #editor-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem; }
+    #editor, iframe { height: 70vh; min-height: 420px; border: 1px solid #4b5563; }
+    iframe { width: 100%; background: white; } button { padding: .55rem 1rem; margin-top: .5rem; }
+    @media (max-width: 800px) { #editor-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><h1>Monaco EditorでEngineを実行</h1><p><a href="docs.html">詳細ドキュメント</a> / <a href="tests.html">機能別テスト</a> / <a href="../index.html">サンプルゲーム</a></p><button id="run">実行</button><span id="status"></span></header>
+  <div id="editor-layout"><div id="editor"></div><iframe id="preview" sandbox="allow-scripts allow-same-origin"></iframe></div>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script type="module" src="../editor-page.js"></script>
+</body>
+</html>

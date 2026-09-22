@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>机の片づけの詳しい解説</title><link rel="stylesheet" href="./game-example.css"></head>
+<body><header><h1>机を片づけよう：ドラッグ処理の詳しい解説</h1><nav><a href="./desk-cleanup.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a></nav></header>
+<main class="explanation">
+<p>このゲームでは、物をクリックするだけでは片づきません。物を押したまま動かし、緑の箱の中で指やマウスを離したときだけ片づきます。</p>
+
+<h2>1. 画面を作る</h2>
+<div class="chunk"><pre><code>import { Engine, Display, GameObject } from "./engine.js";
+import { TextObject, ButtonObject } from "./ui-objects.js";</code></pre><p>1行目はゲームの時間とSVG表示を担当するEngine類を読み込みます。2行目は文字を表示するTextObjectと、マウス操作を受けやすい見た目を作るButtonObjectを読み込みます。importは別ファイルの機能をこのファイルで使う命令です。</p></div>
+<div class="chunk"><pre><code>const canvas = document.querySelector("#game");
+const engine = new Engine(canvas, 60, 800, 450);</code></pre><p><code>querySelector</code>でHTMLのCanvasを1つ取得します。800×450はゲーム内の理論サイズです。実際のCanvasが別の大きさでも、Engineが同じ論理座標へ変換します。</p></div>
+<div class="chunk"><pre><code>const world = engine.newDisplay(
+  new Display("desk", 800, 450, { background: "#78350f" })
+);</code></pre><p>DisplayはObjectを置く1枚のSVGレイヤーです。茶色の背景を持つ机の画面を作り、Engineへ登録します。以後、このDisplayへObjectを追加します。</p></div>
+
+<h2>2. 片づけ箱を作る</h2>
+<div class="chunk"><pre><code>const tray = engine.addObject(world, new GameObject({
+  x: 570, y: 120, width: 190, height: 270,</code></pre><p>片づけ箱は通常のGameObjectです。<code>x,y</code>は左上の位置、widthとheightは判定に使う箱の大きさです。GameObjectは表示だけでなく、ゲームの状態を保存する入れ物にもできます。</p></div>
+<div class="chunk"><pre><code>shapes: [createShape("rect", {
+  x: 0, y: 0, width: 190, height: 270, fill: "#365314"
+})]</code></pre><p><code>shapes</code>にはSVG要素を配列で渡します。ここではrectを1個作り、緑の箱として表示しています。表示の矩形と判定の座標を同じ値にしているので、見た目と判定が一致します。</p></div>
+<div class="chunk"><pre><code>const trayLabel = engine.addObject(world,
+  new TextObject("ここへ片づける", { x: 665, y: 255, anchor: "middle" })
+);</code></pre><p>箱の中央に説明文字を置きます。TextObjectも普通のObjectなので、Engineの論理座標で表示できます。<code>anchor: "middle"</code>は文字の中心をx座標に合わせます。</p></div>
+
+<h2>3. ドラッグする物を作る</h2>
+<div class="chunk"><pre><code>const labels = ["本", "コップ", "ペン", "メモ", "時計",
+  "おもちゃ", "鍵", "箱", "スマホ", "消しゴム"];</code></pre><p>物の名前を配列に保存します。配列の要素を順番に処理することで、同じ作り方の物を10個作れます。配列の番号は0から始まります。</p></div>
+<div class="chunk"><pre><code>const items = [];
+let cleaned = 0;
+let dragging = null;</code></pre><p><code>items</code>には作った物を保存します。<code>cleaned</code>は片づけた数です。<code>dragging</code>は現在ドラッグ中の物を1個だけ保存します。nullは「今は何も持っていない」という意味です。</p></div>
+<div class="chunk"><pre><code>labels.forEach((label, index) =&gt; {
+  const item = engine.addObject(world, new ButtonObject(label, {</code></pre><p>forEachは配列の全要素を1回ずつ処理します。labelには「本」などの文字、indexには0〜9の番号が入ります。ButtonObjectを使いますが、通常のボタンとしてクリック完了にはせず、ドラッグ用に使います。</p></div>
+<div class="chunk"><pre><code>x: 90 + (index % 4) * 105,
+y: 125 + Math.floor(index / 4) * 100,
+width: 86, height: 52</code></pre><p>indexを計算して物を4列に並べます。<code>%</code>は余りです。index%4は0,1,2,3を繰り返し、列になります。Math.floor(index/4)は行番号になります。</p></div>
+
+<h2>4. Canvas座標へ変換する</h2>
+<div class="chunk"><pre><code>function pointerToLogical(event) {
+  const bounds = engine.svg.getBoundingClientRect();
+  return {</code></pre><p>ブラウザのPointerEventは画面上のclientX/clientYを持っています。しかしゲームは800×450の論理座標です。そのためSVGの実際の四角形を取得し、変換関数で変えます。</p></div>
+<div class="chunk"><pre><code>x: (event.clientX - bounds.left) *
+  engine.logicalWidth / bounds.width,
+y: (event.clientY - bounds.top) *
+  engine.logicalHeight / bounds.height</code></pre><p>まず画面上の位置からSVG左上を引きます。次に「論理サイズ÷実表示サイズ」を掛けます。これでCanvasが小さく表示されても、ゲーム内の正しいx,yになります。</p></div>
+
+<h2>5. 箱の中に入ったか調べる</h2>
+<div class="chunk"><pre><code>function isInsideTray(item) {
+  return item.x &gt;= tray.x &amp;&amp; item.x &lt;= tray.x + tray.width &amp;&amp;
+    item.y &gt;= tray.y &amp;&amp; item.y &lt;= tray.y + tray.height;
+}</code></pre><p>itemの中心位置が、箱の左端から右端、上端から下端の両方に入っているかを調べます。&&は「両方ともtrueならtrue」です。4条件すべてがtrueのとき、箱の中と判定します。</p></div>
+<p>この判定は物の中心だけを見ています。物全体が箱に入ったかを調べたい場合は、物の幅と高さの半分を加えた条件へ変更します。</p>
+
+<h2>6. 画面端から回収できるようにする</h2>
+<div class="chunk"><pre><code>function moveInsideCanvas(item, x, y) {
+  item.moveTo(</code></pre><p>物の位置をCanvas内に制限する関数です。このObjectではx,yが左上なので、中心ではなくObjectの幅と高さを使って計算します。</p></div>
+<div class="chunk"><pre><code>item.moveTo(
+  Math.max(0, Math.min(engine.logicalWidth - item.width, x)),
+  Math.max(90, Math.min(engine.logicalHeight - item.height, y))
+);</code></pre><p><code>Math.min</code>と<code>Math.max</code>で中心位置を上下限の間に収めます。これにより、物全体がCanvasの左右端・下端から消えません。上側はタイトルと説明文があるため90から始めます。</p></div>
+<p>この制限はドラッグ中の両方のpointermoveで使われます。画面端まで運んでも見える部分が必ず残るため、次の操作で再び掴んで回収できます。</p>
+
+<h2>7. 物を押した瞬間</h2>
+<div class="chunk"><pre><code>item.element.addEventListener("pointerdown", (event) =&gt; {
+  if (!item.opacity || dragging) return;
+  event.preventDefault();</code></pre><p>pointerdownはマウスボタンを押した瞬間、または指が触れた瞬間です。透明な物は無視します。<code>dragging</code>がすでに入っているときもreturnします。</p></div>
+<div class="chunk"><pre><code>const point = pointerToLogical(event);
+dragging = { item, offsetX: item.x - point.x,
+  offsetY: item.y - point.y };</code></pre><p>押した位置を論理座標へ変換し、ドラッグ中の物と、押した場所との差を保存します。この差を保存することで、物の中央を押さなくても、押した場所が指についてくる自然な移動になります。</p></div>
+<div class="chunk"><pre><code>item.dragging = true;
+item.element.setPointerCapture?.(event.pointerId);
+item.element.parentNode.append(item.element);</code></pre><p>draggingフラグを物にも記録します。setPointerCaptureは、ポインターがObjectの外へ出ても同じObjectへmove/upを送る仕組みです。最後のappendはその物をSVGの最後へ移し、見た目でも最前面にします。</p></div>
+
+<h2>8. 重なった物を2個持たない仕組み</h2>
+<div class="chunk"><pre><code>let dragging = null;
+if (!item.opacity || dragging) return;</code></pre><p>重要なのはdraggingを1個の変数で管理することです。すでにAを持っている間にBのpointerdownが届いても、draggingがnullではないのでBは無視されます。</p></div>
+<p>さらにSVGでは、同じ場所に形が重なっている場合、DOM上で前面にある要素がポインターの対象になります。pointerdownはその1つのObjectから始まります。つまり「ヒットテストで1個を選ぶ」ことと「状態変数で2個目を拒否する」ことの2段構えになっています。</p>
+<div class="chunk"><pre><code>if (!dragging || dragging.item !== item) return;
+const point = pointerToLogical(event);
+item.moveTo(point.x + dragging.offsetX, point.y + dragging.offsetY);</code></pre><p>pointermoveでは、現在のドラッグ対象がこのitemか確認します。一致しなければ何もしません。一致したときだけ、保存したoffsetを足してObjectを移動します。</p></div>
+
+<h2>9. 離したときの結果</h2>
+<div class="chunk"><pre><code>function finishDrag(item) {
+  if (!dragging || dragging.item !== item) return;
+  if (isInsideTray(item)) {</code></pre><p>pointerupまたはpointercancelでfinishDragを呼びます。まず現在のドラッグがこの物か確認し、違う物の終了処理を防ぎます。箱の中なら片づけ成功です。</p></div>
+<div class="chunk"><pre><code>item.opacity = 0;
+item.dragging = false;
+cleaned++;</code></pre><p>成功した物は透明にします。配列から削除せず、opacityを0にするだけなので、後の処理でも安全に管理できます。cleanedを1増やします。</p></div>
+<div class="chunk"><pre><code>} else {
+  status.text = "その場所に置きました。緑の箱へ運ぶと片づきます";
+}</code></pre><p>箱の外で離した場合も失敗扱いにはしますが、物は元の位置へ戻しません。現在の位置をそのまま新しい配置場所として保存し、そこからもう一度ドラッグできます。</p></div>
+<div class="chunk"><pre><code>dragging = null;
+}
+item.element.addEventListener("pointerup", () =&gt; finishDrag(item));</code></pre><p>処理の最後にdraggingをnullへ戻し、次の物を持てるようにします。pointercancelはブラウザやOSが操作を中断した場合なので、同じfinishDragを呼んで安全に元へ戻します。</p></div>
+
+<h2>10. ゲームを開始する</h2>
+<div class="chunk"><pre><code>status.text = `片づけた数: 0 / ${labels.length}`;
+engine.start();</code></pre><p>最初の進み具合を表示し、Engineを開始します。Engineが毎フレーム各ObjectのupdateElementを呼ぶので、ドラッグで変えたx,yがSVG表示へ反映されます。</p></div>
+<p>このゲームの要点は、PointerEventそのもの、画面座標から論理座標への変換、ドラッグ状態を1個だけ持つこと、離した場所が範囲内かをifで判定すること、箱の外でも現在位置を維持することです。</p>
+</main></body></html>

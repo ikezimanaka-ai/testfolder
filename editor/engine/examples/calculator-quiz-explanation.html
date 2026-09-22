@@ -1,0 +1,62 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>計算クイズの解説</title><link rel="stylesheet" href="./game-example.css"></head><body><header><h1>計算クイズ：コードの読み方</h1><nav><a href="./calculator-quiz.html">ゲームで遊ぶ</a></nav></header><main class="explanation">
+<p>このゲームは、毎フレーム動くアクションゲームではなく、問題を出して入力を採点するUIゲームです。下のコード片は実際の<code>calculator-quiz.js</code>を、初心者が追いやすい大きさに分けたものです。</p>
+<h2>1. エンジンと画面を用意する</h2>
+<div class="chunk"><pre><code>import { Engine, Display } from "./engine.js";
+import { TextObject, ButtonObject } from "./ui-objects.js";</code></pre><p><code>import</code>は別ファイルの機能を読み込みます。<code>Engine</code>はゲームループ、<code>Display</code>は表示のまとまり、<code>TextObject</code>は文字、<code>ButtonObject</code>はクリックできるボタンを表します。</p></div>
+<div class="chunk"><pre><code>const canvas = document.querySelector("#game");
+canvas.tabIndex = 0;</code></pre><p>HTMLの<code>#game</code>というcanvasを探し、<code>tabIndex = 0</code>でキーボードのフォーカス先にします。後で<code>canvas.focus()</code>を呼べるのはこのためです。</p></div>
+<div class="chunk"><pre><code>const engine = new Engine(canvas, 60, 800, 450);
+const world = engine.newDisplay(new Display("quiz", 800, 450, { background: "#172554" }));</code></pre><p><code>engine</code>は目標60FPS、論理サイズ800×450です。<code>world</code>というDisplayを登録し、背景色を設定します。EngineはSVG表示をcanvasの親要素に重ね、座標を論理サイズに合わせます。</p></div>
+<h2>2. 画面の文字と状態</h2>
+<div class="chunk"><pre><code>const question = engine.addObject(world, new TextObject("計算クイズ", { x: 400, y: 62, anchor: "middle", fontSize: 34, color: "#f8fafc" }));
+const result = engine.addObject(world, new TextObject("「問題を出す」を押してください", { x: 400, y: 112, anchor: "middle", fontSize: 20, color: "#bfdbfe" }));</code></pre><p><code>question</code>は問題文、<code>result</code>は案内や判定結果です。<code>x</code>と<code>y</code>は表示位置、<code>anchor: "middle"</code>は文字の中央をその位置に置く指定です。</p></div>
+<div class="chunk"><pre><code>const scoreText = engine.addObject(world, new TextObject("スコア: 0 / 0", { x: 400, y: 150, anchor: "middle", fontSize: 18, color: "#86efac" }));
+const answerText = engine.addObject(world, new TextObject("", { x: 400, y: 205, anchor: "middle", fontSize: 30, color: "#fef08a" }));</code></pre><p><code>scoreText</code>は正解数/回答数、<code>answerText</code>は入力中の文字を表示します。TextObjectの<code>text</code>を書き換えると次のフレームで表示も変わります。</p></div>
+<div class="chunk"><pre><code>let answer = 0, score = 0, count = 0;
+let hasQuestion = false, typed = "";</code></pre><p><code>answer</code>は現在の正解、<code>score</code>は正解数、<code>count</code>は採点した回数です。<code>hasQuestion</code>は出題済みか、<code>typed</code>は入力文字列です。<code>let</code>なのでプレイ中に変化します。</p></div>
+<h2>3. 問題を出す</h2>
+<div class="chunk"><pre><code>function updateAnswer() {
+  answerText.text = typed || "答えを入力";
+}</code></pre><p>関数は処理を名前にまとめたものです。<code>typed</code>が空文字なら右辺の「答えを入力」を使い、空でなければ入力内容を表示します（<code>||</code>は左側が空のとき右側を使います）。</p></div>
+<div class="chunk"><pre><code>function newQuestion() {
+  const a = 2 + Math.floor(Math.random() * 9);
+  const b = 2 + Math.floor(Math.random() * 9);</code></pre><p><code>newQuestion</code>は問題を初期化する関数です。<code>Math.random()</code>は0以上1未満、<code>Math.floor</code>は小数を切り捨てるので、<code>a</code>と<code>b</code>は2〜10の整数になります。</p></div>
+<div class="chunk"><pre><code>answer = a + b; question.text = `${a} + ${b} = ?`;
+hasQuestion = true; typed = ""; result.text = "数字キーまたはキーパッドで入力";</code></pre><p>足し算の結果を正解として保存し、テンプレートリテラルで問題文を作ります。出題済みを<code>true</code>にし、前の入力を空にして案内を更新します。</p></div>
+<div class="chunk"><pre><code>updateAnswer();
+canvas.focus();</code></pre><p>入力表示を空の状態に戻し、canvasへフォーカスを戻します。問題を出すボタンをクリックした後も数字キーを受け取れるようにする処理です。</p></div>
+<h2>4. 採点と無効な入力</h2>
+<div class="chunk"><pre><code>function submitAnswer() {
+  if (!hasQuestion) return;</code></pre><p><code>submitAnswer</code>は回答を採点します。問題がまだないときは<code>return</code>で関数を即終了します。これは「問題を出す」前の誤操作を無視するガードです。</p></div>
+<div class="chunk"><pre><code>if (!typed.trim() || Number.isNaN(Number(typed))) {
+  result.text = "数字を入力してください"; return;
+}</code></pre><p><code>trim()</code>で空白を除き、空入力または数値に変換できない入力を拒否します。キーボードから入るのは数字、<code>-</code>、Backspaceだけなので通常は数値ですが、チェックを置いて安全にしています。</p></div>
+<div class="chunk"><pre><code>const ok = Number(typed) === answer;
+score += ok ? 1 : 0; count++; hasQuestion = false;</code></pre><p><code>Number(typed)</code>を数値にして正解と厳密比較します。正しければ条件演算子で1を加え、<code>count</code>は正誤に関係なく1増えます。採点後は同じ問題を再送信できないようにします。</p></div>
+<div class="chunk"><pre><code>result.text = ok ? "せいかい！" : `ざんねん、正解は ${answer}`;
+scoreText.text = `スコア: ${score} / ${count}`;</code></pre><p>正誤に応じた文章とスコアを表示します。正解を当てる、または間違えるたびに表示だけが更新されます。</p></div>
+<div class="chunk"><pre><code>typed = ""; updateAnswer();
+canvas.focus();</code></pre><p>採点後は入力欄を空にし、次の問題を待つ状態へ戻します。このゲームには別のゲームオーバーはなく、問題を出すたびに何度でも続けられます。</p></div>
+<h2>5. ボタン配列とクリックイベント</h2>
+<div class="chunk"><pre><code>const newButton = engine.addObject(world, new ButtonObject("問題を出す", { x: 105, y: 350, width: 190, onClick: newQuestion }));
+const submitButton = engine.addObject(world, new ButtonObject("答える", { x: 505, y: 350, width: 190, onClick: submitAnswer }));</code></pre><p>2つのボタンをworldへ追加します。<code>onClick</code>に関数を渡すと、ButtonObjectのpointerupイベントでその関数が呼ばれます。ここでは引数を渡さず関数そのものを渡しています。</p></div>
+<div class="chunk"><pre><code>const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "−", "消す"];
+keys.forEach((label, i) =&gt; {</code></pre><p><code>keys</code>はキーパッドのラベル配列です。<code>forEach</code>は各要素を順番に処理し、<code>label</code>は文字、<code>i</code>は0から始まる添字です。</p></div>
+<div class="chunk"><pre><code>x: 205 + (i % 6) * 66,
+y: 245 + Math.floor(i / 6) * 48, width: 58, height: 38,</code></pre><p><code>i % 6</code>で列（0〜5）、<code>Math.floor(i / 6)</code>で行（0〜1）を作り、12個を6列2行に並べます。これは配列のデータから画面のボタンを繰り返し生成する例です。</p></div>
+<div class="chunk"><pre><code>onClick: () =&gt; {
+  if (label === "消す") typed = typed.slice(0, -1);</code></pre><p>クリック時のアロー関数です。「消す」は<code>slice(0, -1)</code>で最後の1文字を除きます。<code>label</code>は各反復で異なる値を保持します。</p></div>
+<div class="chunk"><pre><code>else if (label === "−") { if (!typed) typed = "-"; }
+else if (typed.length &lt; 8) typed += label;</code></pre><p>マイナスは入力が空のときだけ追加します。それ以外の数字は長さ8未満のときだけ末尾に連結します。表示上の「−」を、数値として使える半角<code>-</code>に変えている点にも注意します。</p></div>
+<div class="chunk"><pre><code>updateAnswer(); canvas.focus();
+},</code></pre><p>どのキーパッドボタンでも表示を更新し、次のキー入力のためにcanvasへフォーカスします。</p></div>
+<h2>6. キーボードイベントと開始</h2>
+<div class="chunk"><pre><code>canvas.addEventListener("keydown", (event) =&gt; {
+  if (/^[0-9]$/.test(event.key) &amp;&amp; typed.length &lt; 8) typed += event.key;</code></pre><p><code>keydown</code>はキーを押したイベントです。正規表現で1桁の数字だけを通し、最大8文字まで<code>event.key</code>を追加します。</p></div>
+<div class="chunk"><pre><code>else if (event.key === "-" &amp;&amp; !typed) typed = "-";
+else if (event.key === "Backspace") typed = typed.slice(0, -1);</code></pre><p>空のときだけマイナスを許可し、Backspaceでは最後の文字を消します。</p></div>
+<div class="chunk"><pre><code>else if (event.key === "Enter") submitAnswer();
+else if (event.key === " ") newQuestion(); else return;</code></pre><p>Enterは採点、Spaceは新しい問題です。対象外のキーでは<code>return</code>するので、次の処理を実行しません。</p></div>
+<div class="chunk"><pre><code>event.preventDefault(); updateAnswer();
+}); engine.start();</code></pre><p>対応したキーのブラウザ既定動作を止め、入力表示を更新します。最後の<code>engine.start()</code>でEngineのフレーム更新を開始します。このゲームでは毎フレームの独自処理はなく、ボタンやキーイベントが状態と文字を変更します。</p></div>
+</main></body></html>
