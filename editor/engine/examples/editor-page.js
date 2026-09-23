@@ -152,45 +152,41 @@ function createEditorInstance() {
   });
 }
 
-function buildImportMap() {
-  const imports = {
-    "./engine.js": engineImportUrl,
-    "./ui-objects.js": uiImportUrl,
-  };
-
-  project.files.forEach((file) => {
-    const fileName = file.name.trim();
-    if (!fileName || fileName === "engine.js" || fileName === "ui-objects.js") return;
-    const blob = new Blob([file.value], { type: "text/javascript" });
-    imports[`./${fileName}`] = URL.createObjectURL(blob);
-  });
-
-  return imports;
+function removeLocalImports(source) {
+  return source.replace(/^\s*import[\s\S]*?from\s*["']\.\/[^"']+["'];?\s*$/gm, "");
 }
 
 function getPreviewEntry() {
   return project.files.some((file) => file.name === "main.js") ? "main.js" : getActiveFile()?.name || "main.js";
 }
 
-function run() {
+async function run() {
   const active = getActiveFile();
   if (!active || !editor) return;
   active.value = editor.getValue();
 
   const entry = getPreviewEntry();
-  const importMap = buildImportMap();
-  const code = `<!doctype html>
-<html>
-  <body style="margin:0;background:#020617;">
-    <canvas id="game" style="width:100vw;height:100vh;display:block"></canvas>
-    <script type="importmap">${JSON.stringify({ imports: importMap })}</script>
-    <script type="module">
-      import "./${entry}";
-    </script>
-  </body>
-</html>`;
-  preview.srcdoc = code;
-  status.textContent = " 実行しました";
+  const entryFile = project.files.find((file) => file.name === entry);
+  if (!entryFile) return;
+  try {
+    const [engineSource, uiSource] = await Promise.all([
+      fetch(engineImportUrl).then((response) => response.text()),
+      fetch(uiImportUrl).then((response) => response.text()),
+    ]);
+    const projectSource = project.files
+      .filter((file) => file.name !== entry)
+      .map((file) => removeLocalImports(file.value))
+      .join("\n");
+    const entrySource = removeLocalImports(entryFile.value);
+    const safeUiSource = removeLocalImports(uiSource).replace(/\bSVG_NS\b/g, "UI_SVG_NS");
+    const combinedSource = [engineSource, safeUiSource, projectSource, entrySource]
+      .join("\n")
+      .replace(/<\/script/gi, "<\\/script");
+    preview.srcdoc = `<!doctype html><html><body style="margin:0;background:#020617;"><canvas id="game" style="width:100vw;height:100vh;display:block"></canvas><script type="module">${combinedSource}</script></body></html>`;
+    status.textContent = " 実行しました";
+  } catch (error) {
+    status.textContent = ` 実行に失敗しました: ${error.message}`;
+  }
 }
 
 function addNewFile() {
