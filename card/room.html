@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FELT / Card Rooms</title><link rel="stylesheet" href="../poker/style.css"><link rel="stylesheet" href="./style.css">
+</head>
+<body><main class="app-shell room-shell">
+  <header class="topbar"><div class="brand"><span class="brand-mark">♠</span><div><p class="eyebrow">CARD TABLE ENGINE</p><h1>FELT</h1></div></div><div class="round-status"><span class="live-dot"></span><span id="connectionLabel">接続中</span></div></header>
+  <section class="room-hero panel"><p class="eyebrow">CHOOSE YOUR TABLE</p><h2>カードゲームルーム</h2><p>共通の卓上エンジンで、Poker・ババ抜き・神経衰弱を遊べます。</p>
+    <form id="createRoomForm" class="room-create"><label><span>部屋ID</span><input id="roomIdInput" required minlength="2" maxlength="24" pattern="[A-Za-z0-9_-]+" placeholder="evening-table"></label><label><span>あなたの名前</span><input id="playerNameInput" maxlength="16" placeholder="PLAYER"></label><button class="primary-button" type="submit">部屋を作る ↗</button></form>
+  </section><section class="room-list-section"><div class="panel-heading"><div><p class="eyebrow">OPEN TABLES</p><h2>公開中の部屋</h2></div><button id="refreshRooms" class="secondary-button" type="button">更新</button></div><div id="roomList" class="room-list"><p class="empty-state">部屋を探しています...</p></div></section>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./realtime.js"></script><script src="./room.js"></script>
+</main></body></html>

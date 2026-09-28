@@ -1,6 +1,6 @@
 (() => {
-  const SUPABASE_URL = 'https://aozojlamhwltfafnxlrt.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_ezUps9ag-WsSire2wJWgYw_2BEoYPBn';
+  const SUPABASE_URL = 'https://ljmtejqgkyyivhpmfdxh.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_aIwwiXKEap4gclC1PhRReg_Rc1q8wSs';
   const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   function createChannel(name, onMessage, onStatus) {

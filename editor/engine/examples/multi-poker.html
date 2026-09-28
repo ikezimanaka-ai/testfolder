@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Multi Poker風 大富豪</title>
+  <link rel="stylesheet" href="./multi-poker.css">
+</head>
+<body>
+  <main class="app">
+    <section id="setup" class="panel setup">
+      <p class="eyebrow">MULTI POKER TABLE</p>
+      <h1>大富豪</h1>
+      <p>CPUと遊ぶオフライン版。ルール効果はログに表示されます。</p>
+      <label>参加人数
+        <select id="player-count">
+          <option>2</option><option>3</option><option selected>4</option><option>5</option>
+          <option>6</option><option>7</option><option>8</option>
+        </select>
+      </label>
+      <p class="setup-help">場が空のときは、好きな枚数のカードを選んで出せます。</p>
+      <button id="start-game" class="primary">ゲーム開始</button>
+    </section>
+
+    <section id="game" hidden>
+      <header class="topbar">
+        <div><p class="eyebrow">MULTI POKER TABLE</p><h1>大富豪</h1></div>
+        <div class="top-actions"><span id="round-info"></span><button id="new-game" class="secondary">新しいゲーム</button></div>
+      </header>
+      <div id="notice" class="notice" role="status"></div>
+      <div id="table" class="table"></div>
+      <section class="field panel">
+        <div class="field-heading"><h2>場</h2><span id="field-rule"></span></div>
+        <div id="field-cards" class="cards field-cards"></div>
+      </section>
+      <section class="controls panel">
+        <div class="control-heading"><h2>あなたの手札</h2><span id="selection-count"></span></div>
+        <div id="hand" class="cards hand"></div>
+        <div id="effect-controls" class="effect-controls"></div>
+        <div class="actions"><button id="play" class="primary">出す</button><button id="pass" class="secondary">パス</button></div>
+      </section>
+      <section class="panel log-panel"><h2>ゲームログ</h2><ol id="log"></ol></section>
+    </section>
+  </main>
+  <script type="module" src="./multi-poker.js"></script>
+</body>
+</html>

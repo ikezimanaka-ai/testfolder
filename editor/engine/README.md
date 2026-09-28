@@ -37,6 +37,7 @@ DisplayとObjectの座標・サイズは論理座標です。Displayは理論範
 - [examples/docs/editor.html](./examples/docs/editor.html): Monaco Editorでコードを編集してプレビュー実行
 - [ui-objects.js](./ui-objects.js): TextObject、BarObject、ButtonObjectの継承用UI Object
 - 各ゲームページ: ゲーム画面、スコア、入力、再開ボタンをCanvas内のSVG Objectだけで表示・操作
+- [examples/multi-poker.html](./examples/multi-poker.html): 場が空くたびに枚数を選べる、階段だけ同柄で続ける制限、パスを順番に回す2〜8人CPU対戦のMulti Poker風大富豪
 
 SVG要素はObjectの`shapes`へ複数指定できます。接触判定は各SVG要素の変換済み境界矩形による近似判定です。複雑なpathの輪郭そのものを厳密に判定するものではありません。
 
