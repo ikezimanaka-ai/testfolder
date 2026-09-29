@@ -12,4 +12,6 @@ Poker : [Poker](./poker/)
 
 Multi Poker : [Poker](./multi-poker/)
 
+Millionaire : [大富豪](./millionaire/)
+
 Git : [Git](https://testgit.tacz.f5.si)
