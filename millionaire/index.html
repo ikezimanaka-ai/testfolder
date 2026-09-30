@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>大富豪</title>
   <link rel="stylesheet" href="./multi-poker.css">
+  <link rel="stylesheet" href="./online.css">
 </head>
 <body>
   <main class="app">
@@ -23,7 +24,7 @@
           <option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>
         </select>
       </label>
-      <p class="setup-help">場が空のときは、好きな枚数のカードを選んで出せます。</p>
+      <p class="setup-help">階段は同じ柄の4枚連続のみです。5は次の人を飛ばして場を流します。Jokerは数字と柄を指定して出せます。</p>
       <button id="start-game" class="primary">ゲーム開始</button>
     </section>
 
@@ -46,7 +47,26 @@
       </section>
       <section class="panel log-panel"><h2>ゲームログ</h2><ol id="log"></ol></section>
     </section>
+
+    <section id="online-lobby" class="panel online-lobby">
+      <div class="online-heading">
+        <div><p class="eyebrow">ONLINE TABLE</p><h2>オンライン対戦</h2></div>
+        <span id="online-status" role="status">接続準備中...</span>
+      </div>
+      <div class="online-create">
+        <label for="online-name">プレイヤー名</label>
+        <input id="online-name" maxlength="24" autocomplete="nickname" placeholder="名前を入力">
+        <button id="create-room" class="primary" type="button">部屋を作る</button>
+      </div>
+      <div class="room-list-heading">
+        <h3>部屋一覧</h3>
+        <span id="room-list-count">0部屋</span>
+      </div>
+      <div id="room-list" class="room-list"><p class="empty">部屋情報を読み込み中...</p></div>
+      <p class="online-help">1部屋最大10人。プレイ中に参加するとゲーム終了まで観戦になります。開発用認証情報はブラウザーから見えるため、ローカル試作専用です。</p>
+    </section>
   </main>
-  <script type="module" src="./multi-poker.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@skyway-sdk/room/dist/skyway_room-latest.js"></script>
+  <script type="module" src="./online.js?v=20260930-host-abort-joker-confirm"></script>
 </body>
 </html>

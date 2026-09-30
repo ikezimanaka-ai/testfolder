@@ -4,6 +4,7 @@ const VALUE = Object.fromEntries(RANKS.map((rank, index) => [rank, index]));
 const RED_SUITS = new Set(["♥", "♦"]);
 const $ = (selector) => document.querySelector(selector);
 let state = null;
+let onlineMode = false;
 
 function makeDeck() {
   const deck = SUITS.flatMap((suit) => RANKS.map((rank) => ({ id: `${suit}${rank}`, suit, rank })));
@@ -22,11 +23,11 @@ function createGame(count, difficulty = "normal") {
   return { players, current: 0, field: null, revolution: false, passCount: 0, lastPlayer: null, selected: new Set(), logs: [], pending: null, jConstraint: null, suitLock: null, sequenceLock: false, difficulty, finished: false };
 }
 function cardSort(a, b) { return (VALUE[a.rank] ?? 99) - (VALUE[b.rank] ?? 99) || SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit); }
-function activePlayers() { return state.players.filter((player) => player.hand.length); }
+function activePlayers() { return state.players.filter((player) => player.hand.length && !player.left); }
 function nextPlayer(from = state.current) {
   for (let offset = 1; offset <= state.players.length; offset++) {
     const player = state.players[(from + offset) % state.players.length];
-    if (player.hand.length) return player.id;
+    if (player.hand.length && !player.left) return player.id;
   }
   return from;
 }
@@ -56,7 +57,7 @@ function isRevolution(cards) {
   return sorted.every((card, index) => cardRank(card) && cardSuit(card) === cardSuit(sorted[0]) && (!index || VALUE[cardRank(card)] === VALUE[cardRank(sorted[index - 1])] + 1));
 }
 function isStaircase(cards) {
-  if (cards.length < 2 || cards.some((card) => !cardRank(card) || cardRank(card) === "Joker" || !cardSuit(card))) return false;
+  if (cards.length !== 4 || cards.some((card) => !cardRank(card) || cardRank(card) === "Joker" || !cardSuit(card))) return false;
   const suits = new Set(cards.map(cardSuit));
   const values = cards.map(cardRank).map((rank) => VALUE[rank]).sort((a, b) => a - b);
   return suits.size === 1 && values.every((value, index) => !index || value === values[index - 1] + 1);
@@ -77,12 +78,16 @@ function canPlay(cards, field = state.field) {
   if (cards.some((card) => card.joker && (!card.assignedRank || !card.assignedSuit))) return { ok: false, reason: "Jokerの数字と柄を指定してください。" };
   const rank = effectiveRank(cards);
   if (!isStaircase(cards) && new Set(cards.map(cardRank)).size > 1) return { ok: false, reason: "同じ数字か、同じ柄の階段を選んでください。" };
+  if (!isStaircase(cards) && cards.length > 1 && new Set(cards.map(cardRank)).size === 1 &&
+    new Set(cards.map(cardSuit)).size !== cards.length) {
+    return { ok: false, reason: "同じ数字のカードは、それぞれ異なる柄を指定してください。" };
+  }
   if (!field) {
     return { ok: true };
   }
   const previousRank = field.rank;
   const previousRoleRank = singleRank(field.cards) ?? (field.cards.length === 1 ? effectiveRank(field.cards) : null);
-  if (previousRoleRank === "5" || (["3", "6", "9"].includes(previousRoleRank) && field.cards.length >= 2)) return { ok: false, reason: `${previousRoleRank}の効果で場が流れます。` };
+  if (["3", "6", "9"].includes(previousRoleRank) && field.cards.length >= 2) return { ok: false, reason: `${previousRoleRank}の効果で場が流れます。` };
   if (state.suitLock && cards.some((card) => cardSuit(card) !== state.suitLock)) return { ok: false, reason: `${state.suitLock}で出してください。` };
   const fieldIsStaircase = isStaircase(field.cards);
   const previousGroupRank = singleRank(field.cards), nextGroupRank = singleRank(cards), direction = state.revolution ? -1 : 1;
@@ -110,14 +115,14 @@ function canPlay(cards, field = state.field) {
 function log(message) { state.logs.unshift(message); render(); }
 function removeCards(player, cards) { const ids = new Set(cards.map((card) => card.id)); player.hand = player.hand.filter((card) => !ids.has(card.id)); }
 function finishIfPlayerOut() {
-  const winners = state.players.filter((player) => player.hand.length === 0);
+  const winners = state.players.filter((player) => player.hand.length === 0 && !player.left);
   if (!winners.length) return false;
   state.finished = true;
   log(`${winners.map((player) => player.name).join("、")}の勝利！`);
   return true;
 }
 function clearField() { state.field = null; state.passCount = 0; state.current = state.lastPlayer ?? state.current; state.jConstraint = null; state.suitLock = null; state.sequenceLock = false; }
-function advance() { state.current = nextPlayer(state.current); render(); if (!state.finished && !state.players[state.current].human) window.setTimeout(cpuTurn, 500); }
+function advance(skipTurns = 0) { state.current = nextPlayer(state.current); for (let skipped = 0; skipped < skipTurns; skipped++) state.current = nextPlayer(state.current); render(); if (!state.finished && !state.players[state.current].human) window.setTimeout(cpuTurn, 500); }
 function playCards(player, cards, options = {}) {
   const rank = effectiveRank(cards);
   const roleRank = singleRank(cards) ?? (cards.length === 1 ? rank : null);
@@ -136,14 +141,26 @@ function playCards(player, cards, options = {}) {
   state.pending = null;
   if (isRevolution(cards)) { state.revolution = !state.revolution; log(`${player.name}の革命！ ${cards.map(cardLabel).join(" ")}で強さが反転しました。`); }
   else log(`${player.name}が ${cards.map(cardLabel).join(" ")} を出しました。`);
-  const clearedByEffect = roleRank === "5" || (roleRank !== "8" && specialEightCount(cards) > 0);
-  if (clearedByEffect) { log(roleRank === "5" ? "5効果で場が流れます。" : `${roleRank}効果で場が流れます。`); clearField(); }
+  const clearedByEffect = roleRank !== "8" && specialEightCount(cards) > 0;
+  if (clearedByEffect) { log(`${roleRank}効果で場が流れます。`); clearField(); }
   if (finishIfPlayerOut()) return;
   if (roleRank === "7" && !options.skipEffect) state.pending = { type: "give", count: cards.length, from: player.id };
   if (roleRank === "10" && !options.skipEffect) state.pending = { type: "discard", count: cards.length, from: player.id };
   if (roleRank === "J" && !options.skipEffect) state.pending = { type: "threshold", from: player.id };
   if (roleRank === "Q" && !options.skipEffect) state.pending = { type: "q", count: cards.length, from: player.id, ranks: [] };
   if (state.pending) { render(); if (!player.human) resolveCpuEffect(player); return; }
+  if (roleRank === "5") {
+    const skippedPlayers = Math.min(cards.length, Math.max(0, activePlayers().length - 1));
+    log(`5効果：次の${skippedPlayers}人のターンをスキップして場を流します。`);
+    state.current = player.id;
+    for (let skipped = 0; skipped <= skippedPlayers; skipped++) state.current = nextPlayer(state.current);
+    const resumedPlayer = state.current;
+    clearField();
+    state.current = resumedPlayer;
+    render();
+    if (!state.finished && !state.players[state.current].human) window.setTimeout(cpuTurn, 500);
+    return;
+  }
   if (clearedByEffect) { render(); if (!state.players[state.current].human) window.setTimeout(cpuTurn, 500); return; }
   advance();
 }
@@ -173,7 +190,7 @@ function renderCard(card, selected = false, clickable = false) {
   return element;
 }
 function render() {
-  if (!state) return;
+  if (!state || onlineMode) return;
   $("#setup").hidden = true; $("#game").hidden = false;
   $("#round-info").textContent = `${state.revolution ? "革命中" : "通常"} / ${state.players.length}人`;
   $("#notice").textContent = state.finished ? "ゲーム終了。新しいゲームで再戦できます。" : state.pending?.type === "give" ? `7の効果：渡すカードを最大${state.pending.count}枚選んでください。` : state.pending?.type === "discard" ? `10の効果：捨てるカードを最大${state.pending.count}枚選んでください。` : state.pending?.type === "q" ? `Qの効果：捨てる数字を最大${state.pending.count}種類選んでください。` : `${state.players[state.current].name}のターン`;
@@ -198,7 +215,30 @@ function renderEffects() {
     $("#give-target").innerHTML = state.players.filter((player) => player.id !== 0 && player.hand.length).map((player) => `<option value="${player.id}">${player.name}</option>`).join("");
   } else if (state.pending.type === "joker") {
     const jokerCards = state.pending.cardIds.map((id) => state.players[0].hand.find((card) => card.id === id));
-    root.innerHTML = `<fieldset><legend>Jokerの数字と柄を指定</legend>${jokerCards.map((card, index) => `<label>Joker ${index + 1} <select id="joker-suit-${index}"><option value="" selected disabled>柄</option>${SUITS.map((suit) => `<option value="${suit}">${suit}</option>`).join("")}</select> <select id="joker-rank-${index}"><option value="" selected disabled>数字</option>${[...RANKS, "Joker"].map((rank) => `<option value="${rank}">${rank}</option>`).join("")}</select></label>`).join(" ")}</fieldset><button id="cancel-joker" class="secondary" type="button">カード選択に戻る</button>`;
+    const selected = selectedCards(state.players[0]);
+    const naturals = selected.filter((card) => !card.joker);
+    const naturalRanks = naturals.map((card) => card.rank);
+    const naturalRankSet = new Set(naturalRanks);
+    const naturalSuits = new Set(naturals.map((card) => card.suit));
+    const defaultSuit = naturalSuits.size === 1 ? [...naturalSuits][0] : SUITS.find((suit) => !naturalSuits.has(suit)) ?? SUITS[0];
+    let suggestedRanks = [];
+    if (selected.length === 4 && naturalRanks.length === 4 - jokerCards.length &&
+      naturalRankSet.size === naturalRanks.length && naturalSuits.size === 1) {
+      for (let start = 0; start <= RANKS.length - 4; start++) {
+        const run = RANKS.slice(start, start + 4);
+        if (naturalRanks.every((rank) => run.includes(rank))) {
+          suggestedRanks = run.filter((rank) => !naturalRankSet.has(rank));
+          if (suggestedRanks.length === jokerCards.length) break;
+          suggestedRanks = [];
+        }
+      }
+    }
+    const defaultRank = naturalRankSet.size === 1 ? [...naturalRankSet][0] : "3";
+    root.innerHTML = `<fieldset><legend>Jokerの数字と柄を指定</legend>${jokerCards.map((card, index) => {
+      const rank = card.assignedRank ?? suggestedRanks[index] ?? defaultRank;
+      const suit = card.assignedSuit ?? defaultSuit;
+      return `<label>Joker ${index + 1} <select id="joker-suit-${index}">${SUITS.map((value) => `<option value="${value}"${value === suit ? " selected" : ""}>${value}</option>`).join("")}</select> <select id="joker-rank-${index}">${[...RANKS, "Joker"].map((value) => `<option value="${value}"${value === rank ? " selected" : ""}>${value}</option>`).join("")}</select></label>`;
+    }).join(" ")}</fieldset><button id="cancel-joker" class="secondary" type="button">カード選択に戻る</button>`;
     $("#cancel-joker").addEventListener("click", cancelHumanJoker);
   } else if (state.pending.type === "q") {
     root.innerHTML = `<fieldset><legend>全員が捨てる数字（最大${state.pending.count}種類）</legend>${[...RANKS, "Joker"].map((rank) => `<label><input type="checkbox" name="q-rank" value="${rank}"${state.pending.ranks.includes(rank) ? " checked" : ""}>${rank}</label>`).join(" ")}</fieldset>`;
@@ -363,24 +403,20 @@ function legalMoves(player) {
   for (const suit of SUITS) {
     const suited = player.hand.filter((card) => !card.joker && card.suit === suit).sort((a, b) => VALUE[a.rank] - VALUE[b.rank]);
     for (let start = 0; start < suited.length; start++) {
-      for (let length = 2; length <= suited.length - start; length++) {
-        const sequence = suited.slice(start, start + length);
-        if (isStaircase(sequence)) candidates.push(sequence);
-      }
+      const sequence = suited.slice(start, start + 4);
+      if (isStaircase(sequence)) candidates.push(sequence);
     }
     for (let start = 0; start < RANKS.length; start++) {
-      for (let length = 2; length <= RANKS.length - start; length++) {
-        const usedJokers = new Set();
-        const sequence = RANKS.slice(start, start + length).map((rank) => {
-          const natural = player.hand.find((card) => !card.joker && card.suit === suit && card.rank === rank);
-          if (natural) return natural;
-          const joker = jokers.find((card) => !usedJokers.has(card.id));
-          if (!joker) return null;
-          usedJokers.add(joker.id);
-          return { ...joker, assignedSuit: suit, assignedRank: rank };
-        });
-        if (sequence.every(Boolean) && sequence.some((card) => card.joker)) candidates.push(sequence);
-      }
+      const usedJokers = new Set();
+      const sequence = RANKS.slice(start, start + 4).map((rank) => {
+        const natural = player.hand.find((card) => !card.joker && card.suit === suit && card.rank === rank);
+        if (natural) return natural;
+        const joker = jokers.find((card) => !usedJokers.has(card.id));
+        if (!joker) return null;
+        usedJokers.add(joker.id);
+        return { ...joker, assignedSuit: suit, assignedRank: rank };
+      });
+      if (sequence.length === 4 && sequence.every(Boolean) && sequence.some((card) => card.joker)) candidates.push(sequence);
     }
   }
   const moves = [], seen = new Set();
@@ -407,19 +443,156 @@ function cpuTurn() {
   const move = chooseCpuMove(player, moves);
   playCards(player, move); render();
 }
-$("#start-game").addEventListener("click", () => {
-  state = createGame(Number($("#player-count").value), $("#cpu-level").value);
-  log(`ゲーム開始。${state.players.length}人。あなたが好きな枚数から始めます。`);
-  render();
-});
-$("#new-game").addEventListener("click", () => { $("#game").hidden = true; $("#setup").hidden = false; });
-$("#play").addEventListener("click", () => state.pending ? resolveHumanPending() : commitHumanPlay());
-$("#pass").addEventListener("click", () => { pass(state.players[0]); state.selected.clear(); });
-window.addEventListener("change", (event) => { if (event.target.id === "joker-rank") resolveHumanPending(); });
-window.addEventListener("change", (event) => {
-  if (event.target.name === "q-rank" && state?.pending?.type === "q") {
-    const ranks = [...document.querySelectorAll('input[name="q-rank"]:checked')].map((input) => input.value);
-    if (ranks.length > state.pending.count) event.target.checked = false;
-    state.pending.ranks = [...document.querySelectorAll('input[name="q-rank"]:checked')].map((input) => input.value);
+if ($("#start-game")) {
+  $("#start-game").addEventListener("click", () => {
+    onlineMode = false;
+    $("#online-lobby").hidden = true;
+    state = createGame(Number($("#player-count").value), $("#cpu-level").value);
+    log(`ゲーム開始。${state.players.length}人。あなたが好きな枚数から始めます。`);
+    render();
+  });
+  $("#new-game").addEventListener("click", () => {
+    $("#game").hidden = true;
+    $("#setup").hidden = false;
+    $("#online-lobby").hidden = false;
+  });
+  $("#play").addEventListener("click", () => state.pending ? resolveHumanPending() : commitHumanPlay());
+  $("#pass").addEventListener("click", () => { pass(state.players[0]); state.selected.clear(); });
+  window.addEventListener("change", (event) => {
+    if (event.target.name === "q-rank" && state?.pending?.type === "q") {
+      const ranks = [...document.querySelectorAll('input[name="q-rank"]:checked')].map((input) => input.value);
+      if (ranks.length > state.pending.count) event.target.checked = false;
+      state.pending.ranks = [...document.querySelectorAll('input[name="q-rank"]:checked')].map((input) => input.value);
+    }
+  });
+}
+
+export function createOnlineGame(names) {
+  if (!Array.isArray(names) || names.length < 2 || names.length > 10 || names.some((name) => typeof name !== "string" || !name.trim())) {
+    throw new Error("オンラインゲームは2〜10人で、全員の名前が必要です。");
   }
-});
+  onlineMode = true;
+  state = createGame(names.length);
+  state.players.forEach((player, index) => {
+    player.name = names[index].trim().slice(0, 24);
+    player.human = true;
+    player.left = false;
+  });
+  state.current = 0;
+  state.logs = [`ゲーム開始。${names.length}人で対戦します。`];
+  return getOnlineSnapshot();
+}
+
+export function getOnlineSnapshot(viewerId = null) {
+  if (!onlineMode || !state) return null;
+  return {
+    current: state.current,
+    field: state.field,
+    revolution: state.revolution,
+    passCount: state.passCount,
+    lastPlayer: state.lastPlayer,
+    jConstraint: state.jConstraint,
+    suitLock: state.suitLock,
+    sequenceLock: state.sequenceLock,
+    finished: state.finished,
+    pending: state.pending,
+    logs: state.logs.slice(0, 40),
+    players: state.players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      handCount: player.hand.length,
+      hand: player.id === viewerId ? player.hand : undefined,
+      left: Boolean(player.left),
+      out: !player.hand.length && !player.left
+    }))
+  };
+}
+
+export function applyOnlineAction(playerId, action) {
+  if (!onlineMode || !state || state.finished) return { ok: false, reason: "ゲームは進行中ではありません。" };
+  const player = state.players[playerId];
+  if (!player || player.left) return { ok: false, reason: "このプレイヤーは参加していません。" };
+
+  if (state.pending) {
+    if (state.pending.from !== playerId || action?.type !== "effect") return { ok: false, reason: "効果の選択を待っています。" };
+    const pending = state.pending;
+    if (pending.type === "threshold") {
+      if (!["under", "over"].includes(action.direction)) return { ok: false, reason: "Jの指定が正しくありません。" };
+      state.jConstraint = { direction: action.direction };
+      state.pending = null;
+      log(`Jの効果：次の人はJ${action.direction === "under" ? "以下" : "以上"}を出します。`);
+      advance();
+    } else if (pending.type === "give" || pending.type === "discard") {
+      const ids = action.cardIds;
+      if (!Array.isArray(ids) || new Set(ids).size !== ids.length || ids.length > pending.count) return { ok: false, reason: `最大${pending.count}枚まで選べます。` };
+      const cards = ids.map((id) => player.hand.find((card) => card.id === id));
+      if (cards.some((card) => !card)) return { ok: false, reason: "選択したカードが手札にありません。" };
+      if (pending.type === "give") {
+        const targets = state.players.filter((candidate) => candidate.id !== playerId && !candidate.left && candidate.hand.length);
+        if (!targets.length && !cards.length) {
+          state.pending = null;
+          log("渡す相手がいないため7の効果を終了しました。");
+          advance();
+          return { ok: true, snapshot: getOnlineSnapshot() };
+        }
+        const target = state.players[action.targetId];
+        if (!target || target.id === playerId || target.left || !target.hand.length) return { ok: false, reason: "渡す相手が正しくありません。" };
+        removeCards(player, cards);
+        target.hand.push(...cards);
+        log(`${target.name}へ${cards.length}枚渡しました。`);
+      } else {
+        removeCards(player, cards);
+        log(`${cards.length}枚捨てました。`);
+      }
+      state.pending = null;
+      if (!finishIfPlayerOut()) advance();
+    } else if (pending.type === "q") {
+      if (!Array.isArray(action.ranks) || action.ranks.length > pending.count || new Set(action.ranks).size !== action.ranks.length || action.ranks.some((rank) => ![...RANKS, "Joker"].includes(rank))) {
+        return { ok: false, reason: `最大${pending.count}種類まで選べます。` };
+      }
+      state.players.forEach((target) => { target.hand = target.hand.filter((card) => !action.ranks.includes(qRank(card))); });
+      state.pending = null;
+      log(action.ranks.length ? `Qの効果：全員が${action.ranks.join("・")}を捨てました。` : "Qの効果：捨てる数字は選びませんでした。");
+      if (!finishIfPlayerOut()) advance();
+    } else {
+      return { ok: false, reason: "未対応の効果です。" };
+    }
+    return { ok: true, snapshot: getOnlineSnapshot() };
+  }
+
+  if (state.current !== playerId) return { ok: false, reason: "あなたのターンではありません。" };
+  if (action?.type === "pass") {
+    pass(player);
+    return { ok: true, snapshot: getOnlineSnapshot() };
+  }
+  if (action?.type !== "play" || !Array.isArray(action.cards) || !action.cards.length) return { ok: false, reason: "操作内容が正しくありません。" };
+  const ids = action.cards.map((card) => card?.id);
+  if (new Set(ids).size !== ids.length) return { ok: false, reason: "同じカードを重複して選択しています。" };
+  const cards = action.cards.map((selection) => {
+    const original = player.hand.find((card) => card.id === selection.id);
+    if (!original) return null;
+    return original.joker ? { ...original, assignedRank: selection.assignedRank, assignedSuit: selection.assignedSuit } : original;
+  });
+  if (cards.some((card) => !card)) return { ok: false, reason: "選択したカードが手札にありません。" };
+  const check = canPlay(cards);
+  if (!check.ok) return { ok: false, reason: check.reason };
+  playCards(player, cards);
+  return { ok: true, snapshot: getOnlineSnapshot() };
+}
+
+export function markOnlinePlayerLeft(playerId) {
+  if (!onlineMode || !state || state.finished) return getOnlineSnapshot();
+  const player = state.players[playerId];
+  if (!player || player.left) return getOnlineSnapshot();
+  player.left = true;
+  if (state.pending?.from === playerId) state.pending = null;
+  log(`${player.name}がゲーム途中で退出しました。`);
+  const remaining = activePlayers();
+  if (!remaining.length) {
+    state.finished = true;
+    log("参加者がいなくなったためゲームを終了しました。");
+  } else if (state.current === playerId) {
+    advance();
+  }
+  return getOnlineSnapshot();
+}
