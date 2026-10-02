@@ -42,11 +42,20 @@
         </section>
       </section>
       <aside class="online-sidebar">
+        <section class="panel online-card online-chat">
+          <h2>部屋チャット</h2>
+          <ol id="online-chat-messages" class="online-chat-messages" aria-live="polite" aria-relevant="additions"></ol>
+          <form id="online-chat-form" class="online-chat-form">
+            <label class="visually-hidden" for="online-chat-input">チャットメッセージ</label>
+            <input id="online-chat-input" type="text" maxlength="300" autocomplete="off" placeholder="メッセージを入力" required>
+            <button class="primary" type="submit">送信</button>
+          </form>
+        </section>
         <section class="panel online-card"><h2>ゲームログ</h2><ol id="online-log" class="online-log"></ol></section>
       </aside>
     </div>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@skyway-sdk/room/dist/skyway_room-latest.js"></script>
-  <script type="module" src="./online.js?v=20260930-host-abort-joker-confirm"></script>
+  <script type="module" src="./online.js?v=20261002-room-chat-card-count-joker-back"></script>
 </body>
 </html>

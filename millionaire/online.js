@@ -40,6 +40,7 @@ let hostMemberId = "";
 let lobbyDiscoveryTimer;
 let lobbyDiscoveryCount = 0;
 let lastRoomListSignature = "";
+let chatMessages = [];
 
 function debugLog(event, details = {}) {
   console.info(`[DaifugoOnline] ${event}`, details);
@@ -57,6 +58,42 @@ function displayStatus(message, error = false) {
 function reportFailure(error, message) {
   console.error(message, error);
   displayStatus(`${message}: ${error?.message ?? error}`, true);
+}
+
+function addChatMessage(name, text, timestamp = Date.now()) {
+  chatMessages.push({ name, text, timestamp });
+  if (chatMessages.length > 100) chatMessages = chatMessages.slice(-100);
+  const root = $("#online-chat-messages");
+  if (!root) return;
+  const item = document.createElement("li");
+  item.className = "online-chat-message";
+  const author = document.createElement("strong");
+  author.textContent = name;
+  const content = document.createElement("span");
+  content.textContent = `: ${text}`;
+  const time = document.createElement("time");
+  time.className = "online-chat-time";
+  time.dateTime = new Date(timestamp).toISOString();
+  time.textContent = new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  item.append(author, content, time);
+  root.append(item);
+  root.scrollTop = root.scrollHeight;
+}
+
+function sendChatMessage(event) {
+  event.preventDefault();
+  const input = $("#online-chat-input");
+  const text = input.value.trim().slice(0, 300);
+  if (!text || !gameStream || !gameMember) return;
+  try {
+    write(gameStream, { type: "CHAT", text });
+    addChatMessage(ownName, text);
+    if (isHost) markActivity();
+    input.value = "";
+    input.focus();
+  } catch (error) {
+    reportFailure(error, "チャットを送信できませんでした");
+  }
 }
 
 function getConfig() {
@@ -586,6 +623,13 @@ function onGameMessage(message, senderId) {
     void processAction(message, senderId).catch((error) => reportFailure(error, "ゲーム操作を処理できませんでした"));
   } else if (message.type === "ACTION_ERROR" && message.recipient === gameMember?.id) {
     displayStatus(message.reason || "操作を受け付けられませんでした。", true);
+  } else if (message.type === "CHAT" && typeof message.text === "string") {
+    const sender = findPlayerByMember(senderId);
+    const text = message.text.trim().slice(0, 300);
+    if (sender && !sender.left && text) {
+      addChatMessage(sender.name, text);
+      if (isHost) markActivity();
+    }
   } else if (message.type === "ROOM_FULL" && message.recipient === gameMember?.id) {
     displayStatus("この部屋は満員です。", true);
     window.setTimeout(() => { void leaveGameRoom(); }, 200);
@@ -718,7 +762,12 @@ function renderRoomPlayers() {
     const title = document.createElement("strong");
     title.textContent = player.name;
     const meta = document.createElement("p");
-    meta.textContent = player.left ? "退出済み（このゲーム終了後に削除）" : player.role === "spectator" ? "観戦中" : player.gameId === 0 && isHost ? "部屋主" : player.role === "player" ? "参加者" : "";
+    const status = player.left ? "退出済み（このゲーム終了後に削除）" : player.role === "spectator" ? "観戦中" : player.gameId === 0 && isHost ? "部屋主" : player.role === "player" ? "参加者" : "";
+    const gamePlayer = player.role === "player" && player.gameId != null;
+    const handCount = gamePlayer && (role === "spectator" || player.memberId !== gameMember?.id)
+      ? gameSnapshot?.players?.[player.gameId]?.handCount
+      : undefined;
+    meta.textContent = handCount == null ? status : `${status} · 手札 ${handCount}枚`;
     seat.append(title, meta);
     root.append(seat);
   });
@@ -806,6 +855,17 @@ function renderEffects() {
     });
   } else if (canChooseEffect && pending.type === "joker") {
     root.append(document.createTextNode("選択したJokerの数字と柄を指定してください。"));
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.className = "secondary";
+    backButton.textContent = "カード選択に戻る";
+    backButton.addEventListener("click", () => {
+      if (gameSnapshot?.pending?.type !== "joker" || gameSnapshot.pending.from !== playerId) return;
+      gameSnapshot = { ...gameSnapshot, pending: null };
+      selectedIds.clear();
+      renderGame();
+    });
+    root.append(backButton);
   }
   const selectedCards = privateHand.filter((card) => selectedIds.has(card.id));
   const naturalRanks = new Set(selectedCards.filter((card) => !card.joker).map((card) => card.rank));
@@ -982,6 +1042,7 @@ function attachPageActions() {
   if (!gamePage) return;
   $("#start-game-online").addEventListener("click", startGame);
   $("#abort-game-online").addEventListener("click", abortGame);
+  $("#online-chat-form").addEventListener("submit", sendChatMessage);
   $("#play-card-action").addEventListener("click", submitOnlineAction);
   $("#pass-action").addEventListener("click", () => submitAction({ type: "pass" }));
   $("#leave-room").addEventListener("click", async () => {
