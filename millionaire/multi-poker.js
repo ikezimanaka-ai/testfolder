@@ -74,6 +74,7 @@ function singleSuit(cards) {
   return suits.size === 1 ? [...suits][0] : null;
 }
 function canPlay(cards, field = state.field) {
+  if (!field?.cards?.length) field = null;
   if (!cards.length) return { ok: false, reason: "カードを選んでください。" };
   if (cards.some((card) => card.joker && (!card.assignedRank || !card.assignedSuit))) return { ok: false, reason: "Jokerの数字と柄を指定してください。" };
   const rank = effectiveRank(cards);
@@ -127,6 +128,12 @@ function playCards(player, cards, options = {}) {
   const rank = effectiveRank(cards);
   const roleRank = singleRank(cards) ?? (cards.length === 1 ? rank : null);
   const previousField = state.field;
+  if (!previousField?.cards?.length) {
+    state.jConstraint = null;
+    state.suitLock = null;
+    state.sequenceLock = false;
+    state.passCount = 0;
+  }
   const previousGroupRank = previousField ? singleRank(previousField.cards) : null, playedGroupRank = singleRank(cards);
   const previousSuit = previousField ? singleSuit(previousField.cards) : null, playedSuit = singleSuit(cards);
   const direction = state.revolution ? -1 : 1;
@@ -165,7 +172,15 @@ function playCards(player, cards, options = {}) {
   advance();
 }
 function pass(player) {
-  if (!state.field) return log("場が空のときはパスできません。");
+  if (!state.field?.cards?.length) {
+    state.passCount = 0;
+    state.jConstraint = null;
+    state.suitLock = null;
+    state.sequenceLock = false;
+    log(`${player.name}はパス。場が空のため次の人に手番を移します。`);
+    advance();
+    return;
+  }
   if (state.jConstraint && player.id !== state.field.playerId) state.jConstraint = null;
   state.passCount++;
   log(`${player.name}はパス。`);
@@ -197,12 +212,12 @@ function render() {
   const table = $("#table"); table.replaceChildren();
   state.players.forEach((player) => { const seat = document.createElement("article"); seat.className = `seat${player.id === state.current ? " active" : ""}${player.human ? " human" : ""}`; seat.innerHTML = `<div class="seat-name"><span>${player.name}</span><span class="badge">${player.human ? "YOU" : "CPU"}</span></div><div class="seat-meta">${player.hand.length ? `${player.hand.length}枚` : "上がり"}</div>`; table.append(seat); });
   const field = $("#field-cards"); field.replaceChildren(); if (state.field?.cards.length) state.field.cards.forEach((card) => field.append(renderCard(card))); else field.innerHTML = '<span class="empty">場は空です</span>';
-  $("#field-rule").textContent = state.field ? `${state.field.cards.length}枚 / ${state.field.rank}` : "次は何枚でも出せます";
+  $("#field-rule").textContent = state.field?.cards?.length ? `${state.field.cards.length}枚 / ${state.field.rank}` : "次は何枚でも出せます";
   const hand = $("#hand"); hand.replaceChildren(); state.players[0].hand.forEach((card) => hand.append(renderCard(card, state.selected.has(card.id), state.players[0].id === state.current && !state.finished && (!state.pending || ["give", "discard"].includes(state.pending.type)))));
   $("#selection-count").textContent = `${state.selected.size}枚選択`;
   $("#play").textContent = state.pending ? "効果を確定" : "出す";
   $("#play").disabled = state.finished || state.players[state.current].id !== 0 || (Boolean(state.pending) && state.pending.from !== 0);
-  $("#pass").disabled = state.finished || state.players[state.current].id !== 0 || !state.field || Boolean(state.pending);
+  $("#pass").disabled = state.finished || state.players[state.current].id !== 0 || Boolean(state.pending);
   renderEffects(); $("#log").innerHTML = state.logs.map((message) => `<li${message.includes("勝利") ? ' class="winner"' : ""}>${message}</li>`).join("");
 }
 function renderEffects() {

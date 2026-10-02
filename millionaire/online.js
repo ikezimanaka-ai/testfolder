@@ -1,4 +1,4 @@
-import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, markOnlinePlayerLeft } from "./multi-poker.js?v=20260930-five-multi-skip";
+import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, markOnlinePlayerLeft } from "./multi-poker.js?v=20261002-empty-field-pass";
 
 const $ = (selector) => document.querySelector(selector);
 const IDLE_LIMIT = 10 * 60 * 1000;
@@ -926,7 +926,7 @@ function renderGame() {
     empty.textContent = "場は空です";
     field.append(empty);
   }
-  $("#online-field-rule").textContent = gameSnapshot?.field ? `${gameSnapshot.field.cards.length}枚 / ${gameSnapshot.field.rank}` : "次は何枚でも出せます";
+  $("#online-field-rule").textContent = gameSnapshot?.field?.cards?.length ? `${gameSnapshot.field.cards.length}枚 / ${gameSnapshot.field.rank}` : "次は何枚でも出せます";
   renderHand();
   renderEffects();
   const pending = gameSnapshot?.pending;
@@ -935,7 +935,7 @@ function renderGame() {
   $("#play-card-action").textContent = pending?.from === playerId ? "効果を確定" : "出す";
   $("#play-card-action").disabled = !myTurn;
   $("#pass-action").hidden = role !== "player" || phase !== "playing";
-  $("#pass-action").disabled = !myTurn || Boolean(pending) || !gameSnapshot?.field;
+  $("#pass-action").disabled = !myTurn || Boolean(pending);
   const log = $("#online-log");
   log.replaceChildren();
   (gameSnapshot?.logs ?? []).forEach((entry) => {
