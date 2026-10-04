@@ -1,17 +1,14 @@
 import { Engine, Display, GameObject } from "../engine.js";
-import { TextObject, BarObject, ButtonObject } from "../ui-objects.js";
+import {
+  TextObject, BarObject, ButtonObject, RectObject, CircleObject,
+  PolygonObject, SliderObject, TextInputObject, NumberInputObject,
+} from "../ui-objects.js";
 
 const canvas = document.querySelector("#test-canvas");
 const status = document.querySelector("#status");
 let engine;
 let display;
 let demoObjects = [];
-
-function svg(name, attrs = {}) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", name);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-  return node;
-}
 
 function add(object) {
   demoObjects.push(engine.addObject(display, object));
@@ -23,12 +20,45 @@ function label(text, x, y, options = {}) {
 }
 
 function setup() {
-  engine?.stop();
-  engine?._resizeObserver.disconnect();
-  engine?.svg.remove();
+  engine?.destroy();
   demoObjects = [];
   engine = new Engine(canvas, 60, 800, 450);
   display = engine.newDisplay(new Display("examples", 800, 450, { background: "#111827" }));
+}
+
+function addShapeExamples() {
+  label("Canvas Shape Objects", 44, 55);
+  add(new RectObject(130, 74, {
+    x: 125, y: 145, radius: 14, style: { fill: "#2563eb", stroke: "#93c5fd", "stroke-width": 3 },
+  }));
+  add(new CircleObject(38, { x: 280, y: 145, fill: "#f472b6" }));
+  add(new PolygonObject([[0, -42], [44, 35], [-44, 35]], {
+    x: 420, y: 145, style: { fill: "#fbbf24", stroke: "#fef3c7", "stroke-width": 3 },
+  }));
+  const spinner = add(new CircleObject(20, { x: 560, y: 145, fill: "#34d399", rotation: 20 }));
+  spinner.onUpdate = (dt) => { spinner.rotation += 120 * dt; };
+  label("GameObject由来の回転・サイズ変更も描画と判定へ反映", 44, 225, { fontSize: 16 });
+}
+
+function addControlExamples() {
+  label("Canvas SliderObject", 44, 65);
+  const slider = add(new SliderObject({
+    x: 44, y: 90, width: 300, min: 0, max: 100, step: 5, value: 65,
+  }));
+  const sliderValue = add(new TextObject("65", { x: 365, y: 109, fontSize: 20, color: "#38bdf8" }));
+  slider.onChange = (value) => { sliderValue.text = `音量: ${value}`; };
+  label("TextInputObject（Canvas描画、内部入力は視覚的に非表示）", 44, 185, { fontSize: 16 });
+  const textInput = add(new TextInputObject({
+    x: 44, y: 205, width: 340, value: "", placeholder: "Canvasをクリックして入力",
+  }));
+  const inputValue = add(new TextObject("", { x: 44, y: 275, fontSize: 17, color: "#cbd5e1" }));
+  textInput.onInput = (value) => { inputValue.text = `入力: ${value}`; };
+  label("NumberInputObject", 44, 335, { fontSize: 16 });
+  const numberInput = add(new NumberInputObject({
+    x: 44, y: 355, width: 180, value: "10", min: 0, max: 999,
+  }));
+  const numberValue = add(new TextObject("数値: 10", { x: 250, y: 382, fontSize: 17, color: "#cbd5e1" }));
+  numberInput.onInput = (value) => { numberValue.text = `数値: ${value}`; };
 }
 
 function addTextExamples() {
@@ -88,13 +118,17 @@ function showExample(kind) {
   else if (kind === "bar") addBarExamples();
   else if (kind === "button-shadow" || kind === "button-flat" || kind === "button-press") addButtonExamples(kind);
   else if (kind === "inherit") addInheritedExample();
+  else if (kind === "shapes") addShapeExamples();
+  else if (kind === "controls") addControlExamples();
   else {
     addTextExamples();
     addBarExamples();
     addButtonExamples();
   }
   engine.start();
-  status.textContent = `${kind} の例を表示中。ボタンはマウスを重ねてアニメーションを確認できます。`;
+  status.textContent = kind === "controls"
+    ? "スライダーはドラッグ、入力欄はクリックして入力できます。入力欄にフォーカス枠は表示されません。"
+    : `${kind} の例を表示中。ボタンはマウスを重ねてアニメーションを確認できます。`;
 }
 
 for (const button of document.querySelectorAll("[data-example]")) {

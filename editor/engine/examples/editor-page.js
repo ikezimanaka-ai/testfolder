@@ -9,14 +9,11 @@ const starterProject = {
     {
       name: "main.js",
       language: "javascript",
-      value: `import { Engine, Display, GameObject, INPUT } from "./engine.js";
-
-const shape = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-shape.setAttribute("r", 24);
+      value: `import { Engine, Display, GameObject, INPUT, Shapes } from "./engine.js";
 
 class Player extends GameObject {
   constructor() {
-    super({ x: 120, y: 120, tags: ["player"], shapes: [shape] });
+    super({ x: 120, y: 120, tags: ["player"], shapes: [Shapes.circle(24, { fill: "#62d6ff" })] });
   }
   onUpdate(dt) {
     if (INPUT.onKey("ArrowLeft")) this.moveX(-180 * dt);
@@ -26,8 +23,7 @@ class Player extends GameObject {
 
 const engine = new Engine(document.querySelector("#game"), 60, 640, 360);
 const display = engine.newDisplay(new Display("world", 640, 360, { background: "#182744" }));
-const player = engine.addObject(display, new Player());
-player.element.setAttribute("fill", "#62d6ff");
+engine.addObject(display, new Player());
 engine.start();`
     },
     {

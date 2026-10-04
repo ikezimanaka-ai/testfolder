@@ -1,19 +1,13 @@
-import { Engine, Display, GameObject, INPUT } from "../engine.js";
+import { Engine, Display, GameObject, INPUT, Shapes } from "../engine.js";
 import { TextObject, ButtonObject } from "../ui-objects.js";
 
-const NS = "http://www.w3.org/2000/svg";
-const shape = (name, attrs) => {
-  const node = document.createElementNS(NS, name);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-  return node;
-};
 const WIDTH = 800;
 const HEIGHT = 450;
 const patterns = ["放射", "螺旋", "狙い撃ち", "波", "輪と隙間", "回転十字", "ビーム", "雨", "曲線", "交互の壁", "狙い撃ち連射", "遅延リング", "左右スイープ"];
 
 class Player extends GameObject {
   constructor(overrides = {}) {
-    super({ shapes: [shape("circle", { r: 9 })] }, overrides);
+    super({ shapes: [Shapes.circle(9, { fill: "#fef08a" })] }, overrides);
   }
   onUpdate(dt) {
     const speed = INPUT.onKey("Shift") || INPUT.onKey("KeyX") ? 105 : 260;
@@ -28,12 +22,18 @@ class Player extends GameObject {
 
 class Bullet extends GameObject {
   constructor(overrides = {}) {
-    super({ radius: 6, shapes: [shape("circle", { r: 6 })] }, overrides);
+    super({
+      radius: 6,
+      shapes: [Shapes.circle(overrides.radius ?? 6, { fill: overrides.fill ?? "#f8fafc" })],
+    }, overrides);
     this.age = 0;
   }
   onUpdate(dt) {
     this.age += dt;
-    if (this.beam) return;
+    if (this.beam) {
+      if (this.age > 1.6) this.destroy();
+      return;
+    }
     if (this.wave) this.vy += Math.sin(this.age * 5 + this.phase) * 10 * dt;
     if (this.angularVelocity) {
       const speed = Math.hypot(this.vx, this.vy);
@@ -42,7 +42,7 @@ class Bullet extends GameObject {
       this.vy = Math.sin(angle) * speed;
     }
     this.move(this.vx * dt, this.vy * dt);
-    if (this.x < -50 || this.x > WIDTH + 50 || this.y < -50 || this.y > HEIGHT + 50 || this.age > 12) this.opacity = 0;
+    if (this.x < -50 || this.x > WIDTH + 50 || this.y < -50 || this.y > HEIGHT + 50 || this.age > 12) this.destroy();
   }
 }
 
@@ -52,7 +52,6 @@ const status = engine.addObject(world, new TextObject("", { x: 20, y: 27, fontSi
 const patternView = engine.addObject(world, new TextObject("", { x: WIDTH - 20, y: 27, anchor: "end", fontSize: 17, color: "#c4b5fd" }));
 const hint = engine.addObject(world, new TextObject("矢印キーで移動 / Shift・Xで低速 / 小さい黄色の円を守る", { x: WIDTH / 2, y: HEIGHT - 14, anchor: "middle", fontSize: 14, color: "#cbd5e1" }));
 const player = engine.addObject(world, new Player({ x: WIDTH / 2, y: HEIGHT - 65 }));
-player.element.setAttribute("fill", "#fef08a");
 const restartButton = engine.addObject(world, new ButtonObject("もう一度挑戦", { x: 300, y: 200, width: 200, height: 55, shadow: true, opacity: 0 }));
 const bullets = [];
 const warnings = [];
@@ -70,9 +69,8 @@ let warningCounter = 0;
 
 function addBullet(x, y, angle, speed, color = "#f8fafc", options = {}) {
   const bullet = engine.addObject(world, new Bullet({
-    x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, ...options,
+    x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, fill: color, ...options,
   }));
-  bullet.element.setAttribute("fill", color);
   bullets.push(bullet);
   return bullet;
 }
@@ -111,21 +109,22 @@ function rotatingCross() {
 function beam() {
   const x = patternStep % 2 ? 190 : 610;
   const warning = engine.addObject(world, new GameObject({
-    x, y: 48, warning: true, shapes: [shape("path", {
-      d: "M -14 0 L 0 -18 L 14 0 Z", fill: "#facc15", opacity: .9,
-    })],
+    x, y: 48, warning: true,
+    shapes: [Shapes.polygon([[-14, 0], [0, -18], [14, 0]], { fill: "#facc15", opacity: .9 })],
   }));
   warning.element.setAttribute("data-warning", `beam-${warningCounter++}`);
   warnings.push(warning);
   scheduled.push({
     delay: .65,
     run() {
-      warning.opacity = 0;
+      warning.destroy();
       const beamBullet = engine.addObject(world, new Bullet({
         x, y: 250, beam: true, radius: 14,
-        shapes: [shape("rect", { x: -10, y: -190, width: 20, height: 380, rx: 8, fill: "#f43f5e", opacity: .75 })],
+        fill: "#f43f5e",
+        shapes: [Shapes.roundRect(20, 380, 8, { fill: "#f43f5e", opacity: .75 })],
       }));
       bullets.push(beamBullet);
+      warnings.splice(warnings.indexOf(warning), 1);
     },
   });
 }
@@ -188,7 +187,7 @@ function spawnPattern() {
 }
 
 function restart() {
-  for (const bullet of bullets) bullet.opacity = 0;
+  for (const bullet of bullets) bullet.destroy();
   bullets.length = 0;
   started = performance.now();
   score = 0;
@@ -198,7 +197,8 @@ function restart() {
   patternIndex = 0;
   patternStep = 0;
   scheduled.length = 0;
-  for (const warning of warnings) warning.opacity = 0;
+  for (const warning of warnings) warning.destroy();
+  warnings.length = 0;
   player.moveTo(WIDTH / 2, HEIGHT - 65);
   player.opacity = 1;
   restartButton.opacity = 0;
@@ -207,6 +207,9 @@ function restart() {
 restartButton.onClick = restart;
 
 world.onUpdate = (dt) => {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    if (bullets[i]._removed) bullets.splice(i, 1);
+  }
   if (gameOver) return;
   const elapsed = (performance.now() - started) / 1000;
   score = Math.floor(elapsed * 10);
@@ -236,8 +239,9 @@ world.onUpdate = (dt) => {
       patternIndex = savedIndex;
     }
   }
-  for (const bullet of bullets) {
-    if (!bullet.opacity || hitCooldown > 0) continue;
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const bullet = bullets[i];
+    if (hitCooldown > 0) continue;
     const distance = Math.hypot(player.x - bullet.x, player.y - bullet.y);
     if (distance < (bullet.radius ?? 6) + 8) {
       lives--;

@@ -3,80 +3,240 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Project Home</title>
+  <title>Engine のページ一覧</title>
   <style>
-    :root { color-scheme: dark; }
-    body {
-      margin: 0;
-      font-family: sans-serif;
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
       background: #020817;
       color: #e2e8f0;
     }
-    .wrap {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 32px 20px 80px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 18px;
-    }
-    .card {
-      background: rgba(15, 23, 42, 0.96);
+    body { margin: 0; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 36px 20px 72px; }
+    h1 { margin: 0; color: #f8fafc; font-size: clamp(1.7rem, 5vw, 2.4rem); }
+    .intro { margin: 10px 0 24px; color: #aebdd0; line-height: 1.7; }
+    .catalog {
+      padding: 22px;
       border: 1px solid #334155;
-      border-radius: 14px;
-      padding: 18px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, .96);
     }
-    h1, h2 { color: #f8fafc; }
-    ul { line-height: 2; padding-left: 18px; }
-    a { color: #7dd3fc; text-decoration: none; }
+    .toolbar { display: grid; gap: 10px; margin-bottom: 18px; }
+    .toolbar label { color: #f8fafc; font-weight: 650; }
+    .toolbar input {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 46px;
+      padding: 10px 13px;
+      border: 1px solid #475569;
+      border-radius: 9px;
+      background: #0b1220;
+      color: #f8fafc;
+      font: inherit;
+    }
+    .toolbar input:focus-visible, a:focus-visible, summary:focus-visible {
+      outline: 3px solid #38bdf8;
+      outline-offset: 3px;
+    }
+    .status { min-height: 1.5em; margin: 0; color: #aebdd0; font-size: .92rem; }
+    .tree, .tree ul { margin: 0; padding-left: 0; list-style: none; }
+    .tree ul { margin: 5px 0 5px 17px; padding-left: 13px; border-left: 1px solid #334155; }
+    .tree > li + li { margin-top: 8px; }
+    details > summary {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 42px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: #172438;
+      color: #f8fafc;
+      cursor: pointer;
+      font-weight: 650;
+      list-style: none;
+    }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::before {
+      width: 1em;
+      color: #7dd3fc;
+      content: "+";
+      text-align: center;
+    }
+    details[open] > summary::before { content: "−"; }
+    .folder-count { margin-left: auto; color: #94a3b8; font-size: .82rem; font-weight: 400; }
+    .page { margin: 3px 0; }
+    .page a {
+      display: grid;
+      gap: 2px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      color: #7dd3fc;
+      text-decoration: none;
+    }
+    .page a:hover { background: #1e293b; color: #bae6fd; }
+    .page-path { color: #94a3b8; font-size: .78rem; font-weight: 400; overflow-wrap: anywhere; }
+    .empty { padding: 24px 8px; color: #cbd5e1; text-align: center; }
+    .back-link { display: inline-block; margin-top: 20px; color: #7dd3fc; }
+    @media (max-width: 520px) {
+      .wrap { padding: 24px 14px 48px; }
+      .catalog { padding: 16px 12px; }
+      .tree ul { margin-left: 10px; padding-left: 9px; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Engine の全ページ入口</h1>
-    <div class="grid">
-      <div class="card">
-        <h2>ドキュメント / 編集</h2>
-        <ul>
-          <li><a href="./examples/docs/docs.html">詳細ドキュメント</a></li>
-          <li><a href="./examples/docs/tests.html">機能別テスト</a></li>
-          <li><a href="./examples/docs/editor.html">Monaco Editor</a></li>
-          <li><a href="./examples/index.html">Examples Home</a></li>
-        </ul>
+  <main class="wrap">
+    <h1>Engine のページ一覧</h1>
+    <p class="intro">ゲーム、ドキュメント、講座のページをフォルダーごとに表示します。ページ名やパスで検索できます。</p>
+    <section class="catalog" aria-label="ページカタログ">
+      <div class="toolbar">
+        <label for="page-search">ページを検索</label>
+        <input id="page-search" type="search" placeholder="例: チュートリアル、snake、page-10" autocomplete="off" aria-controls="page-tree">
+        <p class="status" id="page-count" role="status" aria-live="polite"></p>
       </div>
+      <div id="page-tree"></div>
+    </section>
+    <a class="back-link" href="./examples/index.html">Examples Home へ</a>
+  </main>
+  <script>
+    const pages = [
+      { path: "examples/index.html", title: "Examples Home" },
+      { path: "examples/calculator-quiz.html", title: "計算クイズ" },
+      { path: "examples/calculator-quiz-explanation.html", title: "計算クイズの解説" },
+      { path: "examples/desk-cleanup.html", title: "机を片づけよう" },
+      { path: "examples/desk-cleanup-explanation.html", title: "机の片づけの詳しい解説" },
+      { path: "examples/dodge-patterns.html", title: "攻撃パターンをよけろ" },
+      { path: "examples/dodge-patterns-explanation.html", title: "攻撃パターンの解説" },
+      { path: "examples/multi-poker.html", title: "大富豪" },
+      { path: "examples/shooter.html", title: "ミニシューター" },
+      { path: "examples/shooter-explanation.html", title: "シューターの解説" },
+      { path: "examples/snake.html", title: "へびゲーム" },
+      { path: "examples/snake-explanation.html", title: "へびゲームの解説" },
+      { path: "examples/block-breaker-course/index.html", title: "ブロック崩し講座 ホーム" },
+      { path: "examples/docs/docs.html", title: "Game Engine 詳細ドキュメント" },
+      { path: "examples/docs/editor.html", title: "Game Engine Monaco Editor" },
+      { path: "examples/docs/studio.html", title: "Game Engine Studio" },
+      { path: "examples/docs/tutorials/index.html", title: "Canvas Engine Studio 実例集" },
+      { path: "examples/docs/tutorials/01-engine.html", title: "最初の画面とEngine" },
+      { path: "examples/docs/tutorials/02-shapes.html", title: "図形と座標" },
+      { path: "examples/docs/tutorials/03-objects.html", title: "GameObjectと更新" },
+      { path: "examples/docs/tutorials/04-input-motion.html", title: "入力とアニメーション" },
+      { path: "examples/docs/tutorials/05-collision.html", title: "当たり判定と検索" },
+      { path: "examples/docs/tutorials/06-ui.html", title: "UI Objectと入力欄" },
+      { path: "examples/docs/tutorials/07-appearance-assets.html", title: "見た目と外部素材" },
+      { path: "examples/docs/tutorials/08-debug-gameplay.html", title: "デバッグとゲーム構成" }
+    ];
 
-      <div class="card">
-        <h2>サンプルゲーム</h2>
-        <ul>
-          <li><a href="./examples/calculator-quiz.html">計算クイズ</a></li>
-          <li><a href="./examples/calculator-quiz-explanation.html">計算クイズ解説</a></li>
-          <li><a href="./examples/shooter.html">シューター</a></li>
-          <li><a href="./examples/shooter-explanation.html">シューター解説</a></li>
-          <li><a href="./examples/dodge-patterns.html">攻撃をよける</a></li>
-          <li><a href="./examples/dodge-patterns-explanation.html">回避解説</a></li>
-          <li><a href="./examples/snake.html">へび</a></li>
-          <li><a href="./examples/snake-explanation.html">へび解説</a></li>
-          <li><a href="./examples/desk-cleanup.html">机の片づけ</a></li>
-          <li><a href="./examples/desk-cleanup-explanation.html">片づけ解説</a></li>
-          <li><a href="./examples/multi-poker.html">Multi Poker風 大富豪</a></li>
-        </ul>
-      </div>
+    for (let lesson = 1; lesson <= 20; lesson += 1) {
+      pages.push({
+        path: `examples/block-breaker-course/pages/page-${lesson}.html`,
+        title: `ブロック崩し講座 ${lesson}`
+      });
+    }
 
-      <div class="card">
-        <h2>ブロック崩し講座</h2>
-        <ul>
-          <li><a href="./examples/block-breaker-course/index.html">講座ホーム</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-1.html">Lesson 1</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-2.html">Lesson 2</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-5.html">Lesson 5</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-10.html">Lesson 10</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-15.html">Lesson 15</a></li>
-          <li><a href="./examples/block-breaker-course/pages/page-20.html">Lesson 20</a></li>
-        </ul>
-      </div>
-    </div>
-  </div>
+    const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+    const root = { name: "", path: "", folders: new Map(), pages: [] };
+
+    for (const page of pages) {
+      const segments = page.path.split("/");
+      const filename = segments.pop();
+      let folder = root;
+      let path = "";
+
+      for (const name of segments) {
+        path = path ? `${path}/${name}` : name;
+        if (!folder.folders.has(name)) {
+          folder.folders.set(name, { name, path, folders: new Map(), pages: [] });
+        }
+        folder = folder.folders.get(name);
+      }
+
+      folder.pages.push({ ...page, filename });
+    }
+
+    function pageCount(folder) {
+      return folder.pages.length + [...folder.folders.values()].reduce((count, child) => count + pageCount(child), 0);
+    }
+
+    function filterFolder(folder, query) {
+      const matchesFolder = query && `${folder.name} ${folder.path}`.toLocaleLowerCase("ja").includes(query);
+      const childQuery = matchesFolder ? "" : query;
+      const matchingPages = folder.pages.filter(page =>
+        !childQuery || `${page.title} ${page.path}`.toLocaleLowerCase("ja").includes(childQuery)
+      );
+      const matchingFolders = [...folder.folders.values()]
+        .map(child => filterFolder(child, childQuery))
+        .filter(child => child.pages.length || child.folders.length);
+
+      return { ...folder, pages: matchingPages, folders: matchingFolders };
+    }
+
+    function renderFolder(folder, query) {
+      const item = document.createElement("li");
+      const details = document.createElement("details");
+      details.open = Boolean(query) || folder.path === "examples";
+
+      const summary = document.createElement("summary");
+      summary.append(document.createTextNode(folder.name));
+      const count = document.createElement("span");
+      count.className = "folder-count";
+      count.textContent = `${pageCount(folder)} ページ`;
+      summary.append(count);
+      details.append(summary);
+
+      const children = document.createElement("ul");
+      for (const child of folder.folders) {
+        children.append(renderFolder(child, query));
+      }
+      for (const page of folder.pages) {
+        const pageItem = document.createElement("li");
+        pageItem.className = "page";
+        const link = document.createElement("a");
+        link.href = `./${page.path}`;
+        link.title = page.path;
+        const title = document.createElement("span");
+        title.textContent = page.title;
+        const path = document.createElement("span");
+        path.className = "page-path";
+        path.textContent = page.filename;
+        link.append(title, path);
+        pageItem.append(link);
+        children.append(pageItem);
+      }
+      details.append(children);
+      item.append(details);
+      return item;
+    }
+
+    function render() {
+      const query = document.querySelector("#page-search").value.trim().toLocaleLowerCase("ja");
+      const visible = [...root.folders.values()]
+        .map(folder => filterFolder(folder, query))
+        .filter(folder => folder.pages.length || folder.folders.length);
+      const count = visible.reduce((total, folder) => total + pageCount(folder), 0);
+      const tree = document.querySelector("#page-tree");
+      const status = document.querySelector("#page-count");
+      tree.replaceChildren();
+      status.textContent = query ? `${count} 件のページが見つかりました` : `${count} ページ`;
+
+      if (!count) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "一致するページはありません。別のキーワードをお試しください。";
+        tree.append(empty);
+        return;
+      }
+
+      const list = document.createElement("ul");
+      list.className = "tree";
+      for (const folder of visible) {
+        list.append(renderFolder(folder, query));
+      }
+      tree.append(list);
+    }
+
+    document.querySelector("#page-search").addEventListener("input", render);
+    render();
+  </script>
 </body>
 </html>

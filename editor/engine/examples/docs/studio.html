@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Engine Studio</title>
+  <link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Engine Studio</a>
+    <input id="project-name" aria-label="プロジェクト名" value="starter-project">
+    <div class="toolbar">
+      <button id="run" title="ゲームを実行">▶ 実行</button>
+      <button id="stop" title="ゲームを停止">■ 停止</button>
+      <button id="save">保存</button>
+      <button id="download-project">JSON書き出し</button>
+      <label class="button-like">JSON読込<input id="load-project" type="file" accept="application/json,.json"></label>
+      <button id="toggle-inspector" aria-expanded="false">インスペクター</button>
+      <span id="save-state" role="status">準備中</span>
+    </div>
+  </header>
+
+  <main class="studio-layout">
+    <aside class="panel project-panel">
+      <div class="panel-heading"><h2>プロジェクト</h2><button id="new-file" title="JavaScriptファイルを追加">＋ JS</button></div>
+      <ul id="project-tree" class="tree-list" aria-label="プロジェクトファイル"></ul>
+    </aside>
+
+    <section class="workspace panel">
+      <div class="workspace-toolbar">
+        <div class="tabs" role="tablist" aria-label="ワークスペース">
+          <button class="active" data-workspace="code" role="tab">コード</button>
+          <button data-workspace="svg" role="tab">SVGアセット</button>
+        </div>
+        <div class="toolbar">
+          <button id="layout-split" class="active" title="コードとゲーム画面を並べる">横並び</button>
+          <button id="layout-tabs" title="コードとゲーム画面を切り替える">タブ切替</button>
+          <button id="preview-tab" class="preview-tab" title="ゲーム画面を表示">ゲーム画面</button>
+        </div>
+      </div>
+      <div id="code-workspace" class="code-workspace">
+        <div id="editor" aria-label="JavaScriptコードエディター"></div>
+        <section id="preview-pane" class="preview-pane">
+          <div class="pane-heading"><strong>Canvas プレビュー</strong><span id="run-state">停止中</span></div>
+          <iframe id="preview" title="ゲームのCanvasプレビュー" sandbox="allow-scripts"></iframe>
+        </section>
+      </div>
+      <section id="svg-workspace" class="svg-workspace" hidden>
+        <div class="svg-toolbar" aria-label="SVG図形ツール">
+          <button data-tool="select" class="active">選択</button>
+          <button data-tool="rect">矩形</button>
+          <button data-tool="roundRect">角丸</button>
+          <button data-tool="circle">円</button>
+          <button data-tool="ellipse">楕円</button>
+          <button data-tool="line">線</button>
+          <button data-tool="polygon">多角形</button>
+          <button data-tool="text">文字</button>
+          <button id="svg-undo" title="元に戻す">↶</button>
+          <button id="svg-redo" title="やり直す">↷</button>
+          <button id="svg-source">SVGソース</button>
+        </div>
+        <div id="svg-editor-root" class="svg-editor-root"></div>
+      </section>
+    </section>
+
+    <aside class="panel inspector-panel">
+      <div class="tabs inspector-tabs" role="tablist" aria-label="インスペクター">
+        <button class="active" data-inspector="symbols">構造</button>
+        <button data-inspector="objects">Objects</button>
+        <button data-inspector="properties">プロパティ</button>
+        <button id="close-inspector" aria-label="インスペクターを閉じる">×</button>
+      </div>
+      <section id="symbols-panel" class="inspector-content">
+        <label class="filter-label">宣言を検索<input id="symbol-filter" type="search" placeholder="関数・変数名"></label>
+        <ul id="symbol-tree" class="tree-list" aria-label="ソース構造"></ul>
+      </section>
+      <section id="objects-panel" class="inspector-content" hidden>
+        <p class="muted">実行中ゲームの読み取り専用一覧</p>
+        <ul id="object-tree" class="tree-list" aria-label="実行中Objects"></ul>
+      </section>
+      <section id="properties-panel" class="inspector-content" hidden>
+        <div id="svg-properties" class="property-form"><p class="muted">SVG図形を選択すると属性を編集できます。</p></div>
+      </section>
+    </aside>
+
+    <section class="panel bottom-dock">
+      <div class="dock-heading">
+        <div class="tabs" role="tablist" aria-label="診断とコンソール">
+          <button class="active" data-dock="diagnostics">診断 <span id="diagnostic-count">0</span></button>
+          <button data-dock="console">コンソール</button>
+        </div>
+        <div class="toolbar">
+          <input id="console-filter" type="search" placeholder="ログを検索" aria-label="ログを検索">
+          <button id="clear-console">クリア</button>
+          <button id="toggle-dock" title="パネルを折りたたむ">折りたたむ</button>
+        </div>
+      </div>
+      <div id="diagnostics-panel" class="dock-content"><ul id="diagnostic-list"></ul></div>
+      <div id="console-panel" class="dock-content" hidden><ul id="console-list"></ul></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script type="module" src="./studio.js"></script>
+</body>
+</html>

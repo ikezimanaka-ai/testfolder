@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canvas Engine Studio 実例集</title>
+  <link rel="stylesheet" href="../tutorials.css">
+</head>
+<body class="catalog-page">
+  <header class="catalog-header">
+    <a href="../studio.html">← Game Engine Studio</a>
+    <h1>Canvas Engine Studio 実例集</h1>
+    <p>章ごとの短いサンプルをMonacoで編集し、隣のCanvasですぐ実行できます。編集内容はこのブラウザーに章・例ごとに保存されます。</p>
+    <p>ゲームObjectをCanvas上へ直接配置するチュートリアルではなく、コードとSVGアセットを使ってゲームを作る方法を順に学びます。</p>
+  </header>
+  <main class="catalog">
+    <section class="learning-path">
+      <h2>進め方</h2>
+      <ol>
+        <li>章を選び、説明を読んでから最初の例を実行します。</li>
+        <li>Monacoのコードを変更して「実行」を押し、Canvasの結果を比べます。</li>
+        <li>2つの例の違いを試し、値や処理を少しずつ変更します。</li>
+        <li>最後に章の課題に取り組み、前後の章を組み合わせます。</li>
+      </ol>
+      <p>例は独立した小さなプログラムです。各プレビューを実行すると、その例専用の隔離フレームでゲームが再起動します。プレビューのキー操作を試す前に、一度Canvasをクリックしてください。</p>
+    </section>
+    <div id="chapter-catalog" class="chapter-grid" aria-live="polite"></div>
+  </main>
+  <script type="module" src="./tutorial-catalog.js"></script>
+</body>
+</html>

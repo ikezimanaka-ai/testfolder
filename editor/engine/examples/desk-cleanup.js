@@ -94,7 +94,7 @@ labels.forEach((label, index) => {
     dragging = { item, offsetX: item.x - point.x, offsetY: item.y - point.y };
     item.dragging = true;
     item.element.setPointerCapture?.(event.pointerId);
-    item.element.parentNode.append(item.element);
+    world.bringToFront(item);
     status.text = "そのまま緑の箱へドラッグしてください";
   });
   item.element.addEventListener("pointermove", (event) => {

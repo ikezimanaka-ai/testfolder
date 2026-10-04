@@ -32,6 +32,7 @@ let ownPublicKeyText = "";
 let hostPublicKey;
 let idleTimer;
 let finishTimer;
+let roomClosing = false;
 let localLeave = false;
 let ownName = "";
 let lastActivity = Date.now();
@@ -255,9 +256,9 @@ function isRoomMetadata(room) {
 }
 
 function announceDelete(roomId) {
-  if (lobbyStream) write(lobbyStream, { type: "ROOM_DELETE", id: roomId });
   rooms.delete(roomId);
   renderRoomList();
+  if (lobbyStream) write(lobbyStream, { type: "ROOM_DELETE", id: roomId });
 }
 
 function markActivity() {
@@ -990,14 +991,12 @@ function submitOnlineAction() {
 
 async function leaveGameRoom() {
   if (!gameRoom || localLeave) return;
-  localLeave = true;
   if (isHost) {
-    if (lobbyStream && activeRoomId) announceDelete(activeRoomId);
-    write(gameStream, { type: "DISBAND", reason: "部屋主が部屋を解散しました。" });
-    phase = "closed";
-  } else {
-    write(gameStream, { type: "LEAVE" });
+    await dissolveRoom("部屋主が部屋を退出したため、部屋を解散しました。");
+    return;
   }
+  localLeave = true;
+  write(gameStream, { type: "LEAVE" });
   await new Promise((resolve) => window.setTimeout(resolve, 200));
   if (idleTimer) window.clearInterval(idleTimer);
   await gameRoom.leave(gameMember);
@@ -1007,19 +1006,64 @@ async function leaveGameRoom() {
 }
 
 async function dissolveRoom(reason) {
-  if (!isHost || phase === "closed") return;
+  if (!isHost || roomClosing || (phase === "closed" && !gameRoom)) return;
+  roomClosing = true;
   phase = "closed";
-  announceDelete(activeRoomId);
-  if (gameStream) write(gameStream, { type: "DISBAND", reason });
   if (idleTimer) window.clearInterval(idleTimer);
-  await new Promise((resolve) => window.setTimeout(resolve, 200));
-  if (gameRoom) {
-    await gameRoom.leave(gameMember);
-    gameMember = null;
-    gameRoom = null;
+  const errors = [];
+  const roomToClose = gameRoom;
+  const memberToLeave = gameMember;
+  let channelClosed = false;
+  try {
+    try {
+      announceDelete(activeRoomId);
+    } catch (error) {
+      console.error("部屋一覧から部屋を削除できませんでした。", error);
+      errors.push(error);
+    }
+    if (gameStream) {
+      try {
+        write(gameStream, { type: "DISBAND", reason });
+      } catch (error) {
+        console.error("参加者に部屋の解散を通知できませんでした。", error);
+        errors.push(error);
+      }
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    if (!roomToClose) {
+      const error = new Error("終了対象のSkyWayルームがありません。");
+      console.error(error.message);
+      errors.push(error);
+    } else if (roomToClose.state === "closed") {
+      channelClosed = true;
+    } else {
+      try {
+        await roomToClose.close();
+        channelClosed = true;
+      } catch (error) {
+        console.error("SkyWayルームを閉じられませんでした。", error);
+        errors.push(error);
+        if (memberToLeave) {
+          try {
+            await roomToClose.leave(memberToLeave);
+          } catch (leaveError) {
+            console.error("SkyWayルームのクローズ失敗後にホストを退出させられませんでした。", leaveError);
+            errors.push(leaveError);
+          }
+        }
+      }
+    }
+  } finally {
+    if (channelClosed) {
+      gameMember = null;
+      gameRoom = null;
+      gameStream = null;
+    }
+    roomClosing = false;
   }
+  if (!channelClosed) throw new AggregateError(errors, "SkyWayルームを閉じられませんでした。");
   if (gamePage) {
-    displayStatus(reason);
+    displayStatus(errors.length ? "SkyWayルームは閉じましたが、一覧削除または参加者通知に失敗しました。" : reason, errors.length > 0);
     window.setTimeout(() => { location.href = "./index.html"; }, 1800);
   }
 }
