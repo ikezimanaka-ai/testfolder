@@ -1,4 +1,4 @@
-import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, markOnlinePlayerLeft } from "./multi-poker.js?v=20261002-empty-field-pass";
+import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, markOnlinePlayerLeft } from "./multi-poker.js?v=20261006-daifugo-engine";
 
 const $ = (selector) => document.querySelector(selector);
 const IDLE_LIMIT = 10 * 60 * 1000;

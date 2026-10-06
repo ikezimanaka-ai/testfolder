@@ -306,9 +306,11 @@ export class TextInputObject extends GameObject {
       x: 0, y: 0, width: 220, height: 42, value: "", placeholder: "",
       label: "Text input", fontSize: 18, fontFamily: "sans-serif",
       color: "#f8fafc", background: "#1e293b", border: "#64748b",
+      focusedBorder: "#f8fafc",
       maxLength: 0, onInput: null, onChange: null, tags: ["text-input"], shapes: [],
     }, overrides);
     this.collisionShapes = [Shapes.rectAt(0, 0, this.width, this.height)];
+    this.focused = false;
   }
   createElement() {
     this.element = element("g", { role: "textbox", "aria-label": this.label });
@@ -330,20 +332,54 @@ export class TextInputObject extends GameObject {
     });
     document.body.append(input);
     this.inputElement = input;
+    this._focusInputFromPointer = (event) => {
+      const point = this.engine.pointerToLogical(event);
+      if (this.engine._hitTest(point) === this) {
+        event.preventDefault();
+        input.style.left = `${event.clientX}px`;
+        input.style.top = `${event.clientY}px`;
+        input.focus({ preventScroll: true });
+      } else this.blur();
+    };
+    this.engine.canvas.addEventListener("pointerdown", this._focusInputFromPointer, true);
+    this._blurInputOutsideCanvas = (event) => {
+      if (event.isTrusted && !event.composedPath().includes(this.engine.canvas) &&
+          !event.composedPath().includes(input)) this.blur();
+    };
+    document.addEventListener("pointerdown", this._blurInputOutsideCanvas);
+    input.addEventListener("focus", () => {
+      this.focused = true;
+      this.engine?.render();
+    });
+    input.addEventListener("blur", () => {
+      if (!this.focused) return;
+      this.focused = false;
+      this.engine?.render();
+    });
     input.addEventListener("input", () => {
       this.value = input.value;
       this.onInput?.call(this, this.value, this);
     });
     input.addEventListener("change", () => this.onChange?.call(this, this.value, this));
-    this.element.addEventListener("pointerdown", () => input.focus({ preventScroll: true }));
   }
   focus() { this.inputElement?.focus({ preventScroll: true }); return this; }
-  blur() { this.inputElement?.blur(); return this; }
+  blur() {
+    this.inputElement?.blur();
+    if (this.focused) {
+      this.focused = false;
+      this.engine?.render();
+    }
+    return this;
+  }
   draw(context) {
+    const focused = this.focused || document.activeElement === this.inputElement;
+    if (this.opacity <= 0 || this._removed || this.element && !this.element.isConnected) {
+      this.blur();
+    }
     drawBase(this, context, (ctx) => {
       ctx.fillStyle = this.background;
       ctx.fillRect(0, 0, this.width, this.height);
-      ctx.strokeStyle = this.border;
+      ctx.strokeStyle = focused ? this.focusedBorder : this.border;
       ctx.strokeRect(0, 0, this.width, this.height);
       ctx.font = `${this.fontSize}px "${this.fontFamily}"`;
       ctx.textAlign = "left";
@@ -359,6 +395,15 @@ export class TextInputObject extends GameObject {
     });
   }
   dispose() {
+    this.blur();
+    if (this._focusInputFromPointer) {
+      this.engine?.canvas.removeEventListener("pointerdown", this._focusInputFromPointer, true);
+      this._focusInputFromPointer = null;
+    }
+    if (this._blurInputOutsideCanvas) {
+      document.removeEventListener("pointerdown", this._blurInputOutsideCanvas);
+      this._blurInputOutsideCanvas = null;
+    }
     this.inputElement?.remove();
     this.element?.remove();
     this._removed = true;

@@ -102,6 +102,8 @@ async function run() {
   const numberInput = engine.addObject(world, new NumberInputObject({
     x: 0, y: 18, width: 15, height: 8, label: "Test number", min: 0, max: 50,
   }));
+  let textInputValue = "";
+  textInput.onInput = (value) => { textInputValue = value; };
   const rect = engine.canvas.getBoundingClientRect();
   const dispatchPointer = (type, x, y) => {
     engine.canvas.dispatchEvent(new PointerEvent(type, {
@@ -117,19 +119,42 @@ async function run() {
   dispatchPointer("pointerdown", world.x + 6 + 9, world.y + 3);
   assert("Slider value updates through Canvas pointer input", slider.value > .7);
   dispatchPointer("pointerdown", world.x + 2, world.y + 11);
+  textInput.inputElement.dispatchEvent(new FocusEvent("focus"));
+  const focusedBorderPixel = pixelsOnRow(engine, world.y + 9, world.x + 5)[0];
+  assert("TextInputObject tracks focus for its border", textInput.focused && textInput.focusedBorder !== textInput.border);
+  assert("TextInputObject draws its focused border in white", focusedBorderPixel[0] > 200 && focusedBorderPixel[1] > 200 && focusedBorderPixel[2] > 200);
+  assert("Focused native input is positioned over the Canvas click", textInput.inputElement.style.opacity === "0" &&
+    textInput.inputElement.style.outline === "none" &&
+    Number.parseFloat(textInput.inputElement.style.left) >= rect.left &&
+    Number.parseFloat(textInput.inputElement.style.left) <= rect.right);
+  textInput.inputElement.value = "入力テスト";
+  textInput.inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+  assert("TextInputObject updates its value and onInput callback", textInput.value === "入力テスト" && textInputValue === "入力テスト");
+  dispatchPointer("pointerdown", 0, 0);
+  const blurredBorderPixel = pixelsOnRow(engine, world.y + 9, world.x + 5)[0];
   assert(
-    "Canvas text fields focus an invisible native input without focus styling",
-    document.activeElement === textInput.inputElement && textInput.inputElement.style.opacity === "0" &&
-      textInput.inputElement.style.outline === "none",
+    "Clicking another Canvas area restores the text-input border",
+    !textInput.focused &&
+      blurredBorderPixel[0] < 200 && blurredBorderPixel[1] < 200 && blurredBorderPixel[2] < 200,
   );
+  textInput.inputElement.dispatchEvent(new FocusEvent("focus"));
+  textInput.opacity = 0;
+  engine.render();
+  assert("Hiding a focused text-input Object clears its focus state", !textInput.focused);
+  textInput.opacity = 1;
+  textInput.inputElement.dispatchEvent(new FocusEvent("focus"));
+  textInput.inputElement.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true }));
+  assert("Text entry keys do not leak into gameplay keyboard state", !INPUT.onKey("Space"));
+  dispatchPointer("pointerdown", world.x + 2, world.y + 11);
+  textInput.inputElement.dispatchEvent(new FocusEvent("focus"));
+  textInput.destroy();
+  assert("Destroying a focused text-input Object clears its focus border", !textInput.focused);
   numberInput.inputElement.value = "42";
   numberInput.inputElement.dispatchEvent(new Event("input", { bubbles: true }));
   assert(
     "NumberInputObject exposes a clamped numeric value",
     numberInput.inputElement.type === "number" && numberInput.numberValue === 42,
   );
-  textInput.inputElement.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true }));
-  assert("Text entry keys do not leak into gameplay keyboard state", !INPUT.onKey("Space"));
 
   const svgData = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4" fill="red"/></svg>')}`;
   const image = await engine.loadSVG(svgData);

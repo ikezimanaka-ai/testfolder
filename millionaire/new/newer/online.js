@@ -1,8 +1,9 @@
-import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, markOnlinePlayerLeft } from "./multi-poker.js?v=20261002-empty-field-pass";
+import { applyOnlineAction, createOnlineGame, getOnlineSnapshot, getRuleCombinations, markOnlinePlayerLeft } from "./game-engine.mjs?v=20261006-daifugo-engine-v2";
+import { readShowCombinations, saveShowCombinations } from "./preferences.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const IDLE_LIMIT = 10 * 60 * 1000;
-const LOBBY_NAME = "daifugo-lobby-v1";
+const LOBBY_NAME = "daifugo-lobby-v2";
 const MAX_PLAYERS = 10;
 const RANKS = ["3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"];
 const SUITS = ["♠", "♥", "♦", "♣"];
@@ -31,7 +32,6 @@ let ownKeyPair;
 let ownPublicKeyText = "";
 let hostPublicKey;
 let idleTimer;
-let finishTimer;
 let roomClosing = false;
 let localLeave = false;
 let ownName = "";
@@ -42,6 +42,14 @@ let lobbyDiscoveryTimer;
 let lobbyDiscoveryCount = 0;
 let lastRoomListSignature = "";
 let chatMessages = [];
+let showCombinations = readShowCombinations();
+const combinationsSetting = $("#show-combinations-online");
+if (combinationsSetting) combinationsSetting.checked = showCombinations;
+combinationsSetting?.addEventListener("change", (event) => {
+  showCombinations = event.currentTarget.checked;
+  saveShowCombinations(showCombinations);
+  renderGame();
+});
 
 function debugLog(event, details = {}) {
   console.info(`[DaifugoOnline] ${event}`, details);
@@ -100,7 +108,7 @@ function sendChatMessage(event) {
 function getConfig() {
   const config = globalThis.SKYWAY_CONFIG;
   if (!config || typeof config.appId !== "string" || !config.appId || typeof config.secret !== "string" || !config.secret) {
-    throw new Error("SkyWayの実行時設定がありません。online-config.example.js を参考に、ローカル設定ファイルを作成してください。");
+    throw new Error("SkyWayの実行時設定がありません。../online-config.example.js を参考に、設定ファイルを作成してください。");
   }
   return config;
 }
@@ -244,9 +252,9 @@ async function connectContext() {
   if (!globalThis.skyway_room) throw new Error("SkyWay SDKを読み込めませんでした。ネットワーク接続を確認してください。");
   if (!globalThis.crypto?.subtle) throw new Error("手札を保護する暗号化に対応した安全な接続（HTTPSまたはlocalhost）が必要です。");
   if (!globalThis.SKYWAY_CONFIG) {
-    const response = await fetch("./online-config.local.js", { cache: "no-store" });
-    if (!response.ok) throw new Error("SkyWay設定ファイルがありません。online-config.example.js を online-config.local.js にコピーして設定してください。");
-    await import("./online-config.local.js");
+    const response = await fetch("../online-config.local.js", { cache: "no-store" });
+    if (!response.ok) throw new Error("SkyWay設定ファイルがありません。../online-config.example.js を参考に ../online-config.local.js を設定してください。");
+    await import("../online-config.local.js");
   }
   const config = getConfig();
   const { SkyWayContext } = globalThis.skyway_room;
@@ -518,11 +526,15 @@ async function broadcastHostKey() {
 }
 
 function publicGameSnapshot() {
-  const snapshot = getOnlineSnapshot();
+  const revealHands = Boolean(gameSnapshot?.finished);
+  const snapshot = getOnlineSnapshot(null, revealHands);
   if (!snapshot) return null;
   return {
     ...snapshot,
-    players: snapshot.players.map(({ hand: _hand, ...player }) => player)
+    players: snapshot.players.map(({ hand: _hand, ...player }) => player),
+    ...(revealHands ? {
+      revealedHands: snapshot.players.map(({ id, name, place, hand }) => ({ id, name, place, cards: hand }))
+    } : {})
   };
 }
 
@@ -686,7 +698,6 @@ async function processAction(message, senderId) {
   gameSnapshot = result.snapshot;
   renderGame();
   await broadcastGameState();
-  if (result.snapshot.finished) scheduleFinishRound();
 }
 
 function handlePlayerLeave(memberId) {
@@ -696,12 +707,9 @@ function handlePlayerLeave(memberId) {
     participant.left = true;
     const snapshot = markOnlinePlayerLeft(participant.gameId);
     gameSnapshot = snapshot;
-    if (snapshot?.finished) scheduleFinishRound();
-    else {
-      markActivity();
-      broadcastRoomState();
-      void broadcastGameState();
-    }
+    markActivity();
+    broadcastRoomState();
+    void broadcastGameState();
   } else {
     roomPlayers = roomPlayers.filter((player) => player.memberId !== memberId);
     markActivity();
@@ -728,14 +736,6 @@ function startGame() {
   void broadcastGameState();
 }
 
-function scheduleFinishRound() {
-  if (finishTimer) return;
-  finishTimer = window.setTimeout(() => {
-    finishTimer = null;
-    void finishRound().catch((error) => reportFailure(error, "待機状態に戻せませんでした"));
-  }, 1800);
-}
-
 async function finishRound() {
   if (!isHost || phase !== "playing" || !gameSnapshot?.finished) return;
   returnToWaiting();
@@ -748,8 +748,6 @@ function abortGame() {
 }
 
 function returnToWaiting() {
-  if (finishTimer) window.clearTimeout(finishTimer);
-  finishTimer = null;
   phase = "waiting";
   roomPlayers = roomPlayers.filter((player) => !player.left);
   roomPlayers.forEach((player, index) => {
@@ -776,7 +774,6 @@ function submitAction(action) {
     markActivity();
     renderGame();
     void broadcastGameState();
-    if (result.snapshot.finished) scheduleFinishRound();
   } else {
     write(gameStream, { type: "ACTION", playerId, action });
     renderGame();
@@ -807,20 +804,78 @@ function renderRoomPlayers() {
 function makeCard(card, interactive) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `card${["♥", "♦"].includes(card.suit) ? " red" : ""}${card.joker ? " joker" : ""}${selectedIds.has(card.id) ? " selected" : ""}`;
+  const displaySuit = card.joker ? card.declaration?.suit ?? card.assignedSuit : card.suit;
+  const displayRank = card.joker ? card.declaration?.rank ?? card.assignedRank ?? "★" : card.rank;
+  button.className = `card${["♥", "♦"].includes(displaySuit) ? " red" : ""}${card.joker ? " joker" : ""}${selectedIds.has(card.id) ? " selected" : ""}`;
   button.disabled = !interactive;
+  button.setAttribute("aria-label", card.joker ? `Joker ${displaySuit ?? ""}${displayRank === "★" ? "" : displayRank}` : `${card.suit}${card.rank}`);
   const rank = document.createElement("span");
   rank.className = "rank";
-  rank.textContent = card.joker ? card.assignedRank ?? "★" : card.rank;
+  rank.textContent = displayRank;
   const suit = document.createElement("span");
   suit.className = "suit";
-  suit.textContent = card.joker ? `JOKER ${card.assignedSuit ?? ""}` : card.suit;
+  suit.textContent = card.joker ? `JOKER ${displaySuit ?? ""}` : card.suit;
   button.append(rank, suit);
   if (interactive) button.addEventListener("click", () => {
     selectedIds.has(card.id) ? selectedIds.delete(card.id) : selectedIds.add(card.id);
     renderGame();
   });
   return button;
+}
+
+function renderOnlineCombinations() {
+  const root = $("#online-combinations");
+  const fieldIsOpen = Boolean(gameSnapshot?.field?.cards?.length);
+  root.hidden = !showCombinations || !fieldIsOpen;
+  if (root.hidden) {
+    root.replaceChildren();
+    return;
+  }
+  const heading = document.createElement("strong");
+  heading.textContent = "ルール上出せる組み合わせ";
+  const note = document.createElement("span");
+  note.textContent = "（自分や他プレイヤーの手札は考慮しません）";
+  const list = document.createElement("ul");
+  const possibilities = getRuleCombinations(gameSnapshot);
+  if (!possibilities.length) {
+    const item = document.createElement("li");
+    item.textContent = "出せる組み合わせはありません。";
+    list.append(item);
+  } else {
+    possibilities.forEach(({ label }) => {
+      const item = document.createElement("li");
+      item.textContent = label;
+      list.append(item);
+    });
+  }
+  root.replaceChildren(heading, note, list);
+}
+
+function renderOnlineRevealedHands() {
+  const section = $("#online-revealed-hands");
+  const root = $("#online-revealed-hands-list");
+  const revealedHands = gameSnapshot?.revealedHands;
+  section.hidden = !gameSnapshot?.finished || !Array.isArray(revealedHands);
+  root.replaceChildren();
+  if (section.hidden) return;
+
+  revealedHands.forEach((player) => {
+    const group = document.createElement("section");
+    group.className = "revealed-player";
+    const heading = document.createElement("h3");
+    heading.textContent = `${player.place ? `${player.place}位：` : ""}${player.name}（${player.cards.length}枚）`;
+    const cards = document.createElement("div");
+    cards.className = "cards";
+    player.cards.forEach((card) => cards.append(makeCard(card, false)));
+    if (!player.cards.length) {
+      const empty = document.createElement("span");
+      empty.className = "empty";
+      empty.textContent = "手札なし";
+      cards.append(empty);
+    }
+    group.append(heading, cards);
+    root.append(group);
+  });
 }
 
 function renderHand() {
@@ -902,21 +957,33 @@ function renderEffects() {
   const naturalRanks = new Set(selectedCards.filter((card) => !card.joker).map((card) => card.rank));
   const defaultRank = naturalRanks.size === 1 ? [...naturalRanks][0] : "3";
   const naturalSuits = new Set(selectedCards.filter((card) => !card.joker).map((card) => card.suit));
-  const defaultSuit = naturalSuits.size === 1 ? [...naturalSuits][0] : "♠";
+  const freeSuits = SUITS.filter((suit) => !naturalSuits.has(suit));
+  const jokers = selectedCards.filter((card) => card.joker);
+  let staircaseRanks = [];
+  if (selectedCards.length === 4 && naturalSuits.size === 1) {
+    for (let start = 0; start <= RANKS.length - 4; start += 1) {
+      const run = RANKS.slice(start, start + 4);
+      if (selectedCards.filter((card) => !card.joker).every((card) => run.includes(card.rank))) {
+        staircaseRanks = run.filter((rank) => !naturalRanks.has(rank));
+        break;
+      }
+    }
+  }
+  const useStaircaseSuit = staircaseRanks.length === jokers.length && jokers.length > 0;
   if (selectedCards.some((card) => card.joker)) {
     const hint = document.createElement("p");
     hint.className = "online-help";
     hint.textContent = "Jokerを出す前に、下の選択欄で数字と柄を指定してください。数字が揃ったカードと一緒に出す場合は、その数字を選びます。";
     root.append(hint);
   }
-  selectedCards.filter((card) => card.joker).forEach((card) => {
+  jokers.forEach((card, index) => {
     const rankSelect = document.createElement("select");
     rankSelect.dataset.jokerRank = card.id;
-    [...RANKS, "Joker"].forEach((rank) => {
+    RANKS.forEach((rank) => {
       const option = document.createElement("option");
       option.value = rank;
       option.textContent = rank;
-      if (rank === (card.assignedRank ?? defaultRank)) option.selected = true;
+      if (rank === (card.assignedRank ?? staircaseRanks[index] ?? defaultRank)) option.selected = true;
       rankSelect.append(option);
     });
     const suitSelect = document.createElement("select");
@@ -925,11 +992,12 @@ function renderEffects() {
       const option = document.createElement("option");
       option.value = suit;
       option.textContent = suit;
+      const defaultSuit = useStaircaseSuit ? [...naturalSuits][0] : freeSuits[index] ?? SUITS[index % SUITS.length];
       if (suit === (card.assignedSuit ?? defaultSuit)) option.selected = true;
       suitSelect.append(option);
     });
-    field(`Jokerの数字（この選択なら${defaultRank}がおすすめ）`, rankSelect);
-    field(`Jokerの柄（この選択なら${defaultSuit}がおすすめ）`, suitSelect);
+    field(`Jokerの数字（この選択なら${staircaseRanks[index] ?? defaultRank}がおすすめ）`, rankSelect);
+    field("Jokerの柄", suitSelect);
   });
 }
 
@@ -948,6 +1016,10 @@ function renderGame() {
   const game = $("#online-game");
   game.hidden = phase !== "playing" && !gameSnapshot?.finished;
   $("#spectator-notice").hidden = role !== "spectator" || phase !== "playing";
+  $("#finish-game-online").hidden = !isHost || phase !== "playing" || !gameSnapshot?.finished;
+  $("#abort-game-online").hidden = !isHost || phase !== "playing" || Boolean(gameSnapshot?.finished);
+  $("#online-revolution-banner").hidden = !gameSnapshot?.revolution;
+  $("#show-combinations-online").checked = showCombinations;
   const field = $("#online-field-cards");
   field.replaceChildren();
   if (gameSnapshot?.field?.cards?.length) gameSnapshot.field.cards.forEach((card) => field.append(makeCard(card, false)));
@@ -957,7 +1029,16 @@ function renderGame() {
     empty.textContent = "場は空です";
     field.append(empty);
   }
-  $("#online-field-rule").textContent = gameSnapshot?.field?.cards?.length ? `${gameSnapshot.field.cards.length}枚 / ${gameSnapshot.field.rank}` : "次は何枚でも出せます";
+  const locks = [
+    gameSnapshot?.suitLock ? `${gameSnapshot.suitLock}縛り` : "",
+    gameSnapshot?.sequenceLock ? "数字縛り" : "",
+    gameSnapshot?.jConstraint ? `J${gameSnapshot.jConstraint.direction === "under" ? "以下" : "以上"}指定` : ""
+  ].filter(Boolean);
+  $("#online-field-rule").textContent = gameSnapshot?.field?.cards?.length
+    ? `${gameSnapshot.field.cards.length}枚 / ${gameSnapshot.field.rank}${locks.length ? ` / ${locks.join("・")}` : ""}`
+    : "次は何枚でも出せます";
+  renderOnlineCombinations();
+  renderOnlineRevealedHands();
   renderHand();
   renderEffects();
   const pending = gameSnapshot?.pending;
@@ -974,7 +1055,7 @@ function renderGame() {
     line.textContent = entry;
     log.append(line);
   });
-  if (gameSnapshot?.finished) $("#phase-detail").textContent = "ゲーム終了。参加者は待機状態に戻りました。";
+  if (gameSnapshot?.finished) $("#phase-detail").textContent = "ゲーム終了。ホストが「ゲームを終了して待機に戻る」を押すまで、この画面で手札と順位を確認できます。";
 }
 
 function submitOnlineAction() {
@@ -1126,6 +1207,9 @@ function attachPageActions() {
   $("#online-chat-form").addEventListener("submit", sendChatMessage);
   $("#play-card-action").addEventListener("click", submitOnlineAction);
   $("#pass-action").addEventListener("click", () => submitAction({ type: "pass" }));
+  $("#finish-game-online").addEventListener("click", () => {
+    void finishRound().catch((error) => reportFailure(error, "ゲームを終了できませんでした"));
+  });
   $("#leave-room").addEventListener("click", async () => {
     try {
       await leaveGameRoom();
