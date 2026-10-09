@@ -116,16 +116,41 @@ test("a 5 skips the sole opponent and returns the lead to its player", () => {
   assert.equal(state.current, 0);
 });
 
-test("four matching 4s can counter two 8s", () => {
+test("four matching 4s can clear a pair of 8s and return the lead to the 4-player", () => {
   const state = gameWithHands(
     ["♠:8", "♥:8", "♦:6"],
     ["♠:4", "♥:4", "♦:4", "♣:4", "♥:5"]
   );
   assert.equal(playCards(state, 0, ["♠:8", "♥:8"]).ok, true);
   assert.equal(playCards(state, 1, ["♠:4", "♥:4", "♦:4", "♣:4"]).ok, true);
-  assert.equal(state.field.rank, "4");
-  assert.equal(state.field.cards.length, 4);
+  assert.equal(state.field, null);
+  assert.equal(state.current, 1);
+  assert.equal(state.lastPlayer, null);
   assert.match(state.logs[0], /防ぎました/);
+});
+
+test("a single Joker can be played above a 2 and it can be answered by ♠3", () => {
+  const state = gameWithHands(["♠:2", "♠:3", "♥:4"], ["joker-1", "♥:5"]);
+  assert.equal(playCards(state, 0, ["♠:2"]).ok, true);
+  assert.equal(playCards(state, 1, ["joker-1"], {
+    "joker-1": { rank: "2", suit: "♠" }
+  }).ok, true);
+  assert.equal(state.field.rank, "Joker");
+  assert.equal(playCards(state, 0, ["♠:3"]).ok, true);
+  assert.equal(state.field, null);
+  assert.equal(state.current, 0);
+});
+
+test("an 8 answered with 4 clears the field and returns the lead to the 4-player", () => {
+  const state = gameWithHands(
+    ["♠:8", "♥:4"],
+    ["♠:4", "♥:4", "♦:5"]
+  );
+  assert.equal(playCards(state, 0, ["♠:8"]).ok, true);
+  assert.equal(playCards(state, 1, ["♠:4", "♥:4"]).ok, true);
+  assert.equal(state.field, null);
+  assert.equal(state.current, 1);
+  assert.equal(state.lastPlayer, null);
 });
 
 test("a staircase cannot answer a four-of-a-kind field", () => {

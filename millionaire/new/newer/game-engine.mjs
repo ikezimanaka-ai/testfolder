@@ -89,7 +89,9 @@ function nextLiving(state, fromId, predicate = () => true) {
 }
 
 function effectiveRank(card) {
-  return card.joker ? card.declaration?.rank ?? null : card.rank;
+  if (!card.joker) return card.rank;
+  if (card.declaration?.rank === "2") return "Joker";
+  return card.declaration?.rank ?? null;
 }
 
 function effectiveSuit(card) {
@@ -319,6 +321,13 @@ function beginEffect(state, playerId, cards, moveInfo) {
     return;
   }
 
+  if (moveInfo.eightCounter) {
+    addLog(state, "4で8切りを防ぎました。");
+    clearField(state, playerId);
+    checkFinished(state);
+    return;
+  }
+
   const groupRank = getGroupRank(cards);
   if (cards.length === 4 && (isFourOfAKind(cards) || isStaircase(cards))) {
     state.revolution = !state.revolution;
@@ -335,10 +344,6 @@ function beginEffect(state, playerId, cards, moveInfo) {
   state.field = { cards, playerId, rank: groupRank };
   state.lastPlayer = playerId;
   state.passed.clear();
-
-  if (moveInfo.eightCounter) {
-    addLog(state, "4で8切りを防ぎました。");
-  }
 
   const previous = moveInfo.previousCards;
   if (previous) {
