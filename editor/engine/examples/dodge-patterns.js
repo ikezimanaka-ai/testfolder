@@ -246,7 +246,7 @@ world.onUpdate = (dt) => {
     if (distance < (bullet.radius ?? 6) + 8) {
       lives--;
       hitCooldown = 1;
-      player.moveTo(WIDTH / 2, HEIGHT - 65);
+      // player.moveTo(WIDTH / 2, HEIGHT - 65);
       if (lives <= 0) {
         gameOver = true;
         player.opacity = 0;
