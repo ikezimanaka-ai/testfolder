@@ -1,5 +1,37 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+export function normalizePolygonPoints(points) {
+  const raw = Array.isArray(points)
+    ? points
+    : typeof points === "string"
+      ? points.split(/\s+/).filter(Boolean)
+      : [];
+
+  const normalized = raw.flatMap((point) => {
+    if (typeof point === "string") {
+      const [x, y] = point.split(",").map((value) => Number(value.trim()));
+      if (Number.isFinite(x) && Number.isFinite(y)) return [{ x, y }];
+      return [];
+    }
+    if (point && typeof point.x === "number" && typeof point.y === "number") return [{ x: Number(point.x), y: Number(point.y) }];
+    return [];
+  }).filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+  if (!normalized.length) return [];
+
+  const unique = [];
+  for (const point of normalized) {
+    const key = `${point.x},${point.y}`;
+    if (!unique.some((candidate) => `${candidate.x},${candidate.y}` === key)) unique.push(point);
+  }
+
+  if (unique.length > 1 && unique[0].x === unique[unique.length - 1].x && unique[0].y === unique[unique.length - 1].y) {
+    unique.pop();
+  }
+
+  return unique;
+}
+
 function createSvgElement(type, attributes = {}) {
   const element = document.createElementNS(SVG_NS, type);
   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
@@ -73,15 +105,34 @@ export class SVGAssetEditor {
   }
 
   _bindToolbar() {
+    this.toolHint = document.querySelector("#svg-tool-hint");
+    const toolMessages = {
+      select: "図形を選択して位置やサイズを調整できます。",
+      rect: "矩形はドラッグで描画します。",
+      roundRect: "角丸矩形はドラッグで描画します。",
+      circle: "円はドラッグでサイズを決めます。",
+      ellipse: "楕円はドラッグでサイズを決めます。",
+      line: "線は開始点と終点をドラッグで引きます。",
+      polygon: "多角形は3点以上をクリックし、ダブルクリックで確定します。",
+      text: "文字はクリックした位置にテキストを配置します。",
+    };
+    const updateToolHint = () => {
+      if (!this.toolHint) return;
+      const message = toolMessages[this.tool] ?? "図形ツールを選んでください。";
+      this.toolHint.textContent = message;
+    };
     document.querySelectorAll("[data-tool]").forEach((button) => button.addEventListener("click", () => {
       document.querySelectorAll("[data-tool]").forEach((item) => item.classList.toggle("active", item === button));
       this.tool = button.dataset.tool;
       this.polygonPoints = [];
+      this.polygonPreview?.remove();
       this.svg.style.cursor = this.tool === "select" ? "default" : "crosshair";
+      updateToolHint();
     }));
     document.querySelector("#svg-undo")?.addEventListener("click", () => this.undo());
     document.querySelector("#svg-redo")?.addEventListener("click", () => this.redo());
     document.querySelector("#svg-source")?.addEventListener("click", () => this.showSource());
+    updateToolHint();
   }
 
   _bindSourceButton() {
@@ -212,9 +263,10 @@ export class SVGAssetEditor {
 
   _drawPolygonPreview() {
     this.polygonPreview?.remove();
-    if (this.polygonPoints.length < 1) return;
+    const points = normalizePolygonPoints(this.polygonPoints);
+    if (points.length < 2) return;
     this.polygonPreview = createSvgElement("polyline", {
-      points: this.polygonPoints.map(({ x, y }) => `${x},${y}`).join(" "),
+      points: points.map(({ x, y }) => `${x},${y}`).join(" "),
       fill: "none", stroke: "#2563eb", "stroke-width": 2,
       "stroke-dasharray": "5 3", "pointer-events": "none",
     });
@@ -222,8 +274,14 @@ export class SVGAssetEditor {
   }
 
   _finishPolygon() {
+    const points = normalizePolygonPoints(this.polygonPoints);
+    if (points.length < 3) {
+      this.polygonPoints = [];
+      this.polygonPreview?.remove();
+      return;
+    }
     this._create("polygon", {
-      points: this.polygonPoints.map(({ x, y }) => `${x},${y}`).join(" "),
+      points: points.map(({ x, y }) => `${x},${y}`).join(" "),
       fill: "#38bdf8", stroke: "#0f172a", "stroke-width": 2,
     });
     this.polygonPoints = [];

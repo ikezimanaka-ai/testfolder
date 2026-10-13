@@ -1,7 +1,7 @@
 const ENGINE_URL = new URL("../../../engine.js", import.meta.url).href;
 const UI_URL = new URL("../../../ui-objects.js", import.meta.url).href;
 const MONACO_VERSION = "0.52.2";
-const chapters = ["01-engine", "02-shapes", "03-objects", "04-input-motion", "05-collision", "06-ui", "07-appearance-assets", "08-debug-gameplay"];
+const chapters = ["01-engine", "02-shapes", "03-objects", "04-input-motion", "05-collision", "06-ui", "07-appearance-assets", "08-debug-gameplay", "09-file-structure-svg", "10-game-build"];
 const CODE_THEME = "VSCode-2026Dark";
 const codeTheme = {
   base: "vs-dark",

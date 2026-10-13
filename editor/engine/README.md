@@ -2,6 +2,77 @@
 
 依存パッケージなしのブラウザ用ES Modulesエンジンです。Canvas 2DでObjectを描画し、`Engine → Display → GameObject` の構成でゲームやUIを作れます。
 
+## ページ構成の整理（ユーザー向けの見方）
+
+このプロジェクトは、機能の説明・サンプルゲーム・学習用コース・エディタが混ざっていて、見た目の整理がやや分かりにくい状態です。実際の利用者は「ゲームを遊ぶ」「解説を見る」「コードを試す」「講座を進める」の4系統に分けて見ると理解しやすいです。
+
+### 1. 入口ページ（最初に見るページ）
+
+- [index.html](./index.html): プロジェクト全体の入口。ページ一覧を見て、どの種類のページに移るかを選ぶ用のナビゲーション。
+- [examples/index.html](./examples/index.html): サンプルゲームとドキュメントを一括で見る一覧ページ。ユーザー向けの「ホーム」に近い役割。
+
+> こちらは「どのページへ行くかの入口」であり、実際のゲームや解説本体ではありません。現状では [index.html](./index.html) と [examples/index.html](./examples/index.html) が似た役割を持っているので、利用者から見るとやや重複に感じます。
+
+### 2. ゲーム本体（遊ぶ用）
+
+- [examples/calculator-quiz.html](./examples/calculator-quiz.html): 電卓風の計算問題ゲーム。ルールは簡単で、答えを早く入力するための演習型。
+- [examples/shooter.html](./examples/shooter.html): 連続で迫る敵を避けながら攻撃するミニシューター。動きや弾幕が中心。
+- [examples/dodge-patterns.html](./examples/dodge-patterns.html): 攻撃パターンを避けるゲーム。シューターと似ているが、攻撃の読み方・回避のタイミングが中心。
+- [examples/snake.html](./examples/snake.html): 代表的なヘビゲーム。操作が単純で、ルール理解がしやすい。
+- [examples/desk-cleanup.html](./examples/desk-cleanup.html): 机を片付ける系のゲーム。見た目・操作の意味がややユニークで、他のゲームより「ミッション」寄り。
+- [examples/multi-poker.html](./examples/multi-poker.html): 2〜8人CPU対戦の大富豪風ゲーム。対象は他の簡易ゲームよりも複雑で、対戦・ルール管理が中心。
+
+これらは「ゲームを実際に遊ぶページ」であり、見た目の違いよりもゲームジャンルの違いが大きいです。いずれも同じゲームエンジンで動くが、目的が「問題回答」「回避」「対戦」「ミッション」などに分かれています。
+
+### 3. ゲームの解説ページ（それぞれのゲームを理解する用）
+
+- [examples/calculator-quiz-explanation.html](./examples/calculator-quiz-explanation.html): 問題生成や入力判定などの考え方を説明する解説。
+- [examples/shooter-explanation.html](./examples/shooter-explanation.html): 敵の出現、攻撃、当たり判定の設計を説明する解説。
+- [examples/dodge-patterns-explanation.html](./examples/dodge-patterns-explanation.html): パターン読解と回避の工夫を説明する解説。
+- [examples/snake-explanation.html](./examples/snake-explanation.html): 進行方向・尾の制御・衝突判定の説明が中心。
+- [examples/desk-cleanup-explanation.html](./examples/desk-cleanup-explanation.html): 片付けタスクの難易度とゲーム設計の意図を説明する解説。
+
+解説ページは「本体ゲームの後に読む」系で、該当するゲーム本体とセットで理解するとわかりやすいです。ゲーム本体は体験、解説は設計思想という役割分担になっています。
+
+### 4. ドキュメント / テスト / エディタ系
+
+- [examples/docs/docs.html](./examples/docs/docs.html): Engine のAPI詳細説明ページ。新しい説明の中心として使うのが自然。
+- [examples/docs/tests.html](./examples/docs/tests.html): UI Object や Canvas 図形、入力機能の実例テスト。
+- [examples/docs/editor.html](./examples/docs/editor.html): Monaco Editor を使ってコードを書き、プレビューを即実行できるページ。
+- [examples/docs/studio.html](./examples/docs/studio.html): エディタ + プレビュー + Object一覧 + コンソール + SVGアセット操作をまとめた開発向けStudio。
+- [examples/docs/tutorials/index.html](./examples/docs/tutorials/index.html): 8章の短いステップで実際に動かしながら学ぶチュートリアル一覧。
+
+この系統は「ゲームのプレイ」のカテゴリではなく、「仕組みを知る・作る・確認する」カテゴリです。特に [examples/docs/studio.html](./examples/docs/studio.html) は機能の検証や開発に近く、他のゲームページと役割が大きく違います。
+
+> 注意点: [docs/docs.html](./docs/docs.html), [docs/editor.html](./docs/editor.html), [docs/tests.html](./docs/tests.html) という同系統のファイルが別フォルダにあります。現状では [examples/docs](./examples/docs) 系がより新しく機能が拡張されているため、ユーザー向けの「正本」はそちらと見てよいです。 [docs](./docs) は旧版または簡易版として扱うのが自然です。
+
+### 5. 学習コース・講座系
+
+- [examples/block-breaker-course/index.html](./examples/block-breaker-course/index.html): ブロック崩しの講座入口。
+- [examples/block-breaker-course/pages/page-1.html](./examples/block-breaker-course/pages/page-1.html) 〜 [examples/block-breaker-course/pages/page-20.html](./examples/block-breaker-course/pages/page-20.html): 1〜20の段階的なレッスン。ゲーム作りの流れを学ぶための教材。
+- [examples/block-breaker-course/exam](./examples/block-breaker-course/exam): 検定・試験向けページ。
+
+この系統は「ゲームの一例を学ぶ」ための構造化講座で、単発のサンプルゲームとは別のカテゴリです。演習形式で進めるため、既存の解説ページよりも長く、かつ段階的に理解する用途が強いです。
+
+### 6. 補助ファイル（ユーザーが直接見るものではない）
+
+- [engine.js](./engine.js): 実際のゲームエンジン本体。
+- [ui-objects.js](./ui-objects.js): UI部品の定義。ボタン、バー、入力欄など。
+- [main.js](./main.js): 画面やページ制御の入口スクリプト。
+- [editor-page.js](./editor-page.js): エディタ系ページの補助処理。
+
+これらは「ページの中身」を支える実装側であり、ユーザー向けの見え方としては隠し要素に近いです。説明ページやゲームページの違いを理解するには、まず見えるページ群を分けて見るのが正しいです。
+
+### まとめ：現状のおすすめ整理
+
+1. 入口: [index.html](./index.html) / [examples/index.html](./examples/index.html)
+2. ゲーム本体: [examples/*.html](./examples) の playable pages
+3. 解説: 各ゲームの explanation pages
+4. ドキュメント/エディタ: [examples/docs](./examples/docs) 系
+5. 教育コース: [examples/block-breaker-course](./examples/block-breaker-course)
+
+この整理にすると、ドキュメント・ゲーム・コースの違いが明確になり、重複して見えるファイルの位置関係も自然に理解できます。
+
 ## 起動
 
 `game-engine`フォルダーで静的サーバーを起動し、表示されたURLをブラウザで開きます。例:

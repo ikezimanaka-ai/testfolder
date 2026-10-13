@@ -7,6 +7,8 @@ const chapters = [
   ["06-ui", "UI Objectと入力欄", "Button、Slider、TextInput、数値入力"],
   ["07-appearance-assets", "見た目と外部素材", "変形、モザイク、画像・SVG・フォント"],
   ["08-debug-gameplay", "デバッグとゲーム構成", "FPS、判定表示、スコア、ループと整理"],
+  ["09-file-structure-svg", "ファイル構造とSVGアセット", "JSファイル分割、SVGの読み込み、アセットURLと編集"],
+  ["10-game-build", "ゲームを組み立てる", "ルール分解、エディタ活用、ゲーム作成の流れ"],
 ];
 
 const container = document.querySelector("#chapter-catalog");
