@@ -1,7 +1,7 @@
 const ENGINE_URL = new URL("../../../engine.js", import.meta.url).href;
 const UI_URL = new URL("../../../ui-objects.js", import.meta.url).href;
 const MONACO_VERSION = "0.52.2";
-const chapters = ["01-engine", "02-shapes", "03-objects", "04-input-motion", "05-collision", "06-ui", "07-appearance-assets", "08-debug-gameplay", "09-file-structure-svg", "10-game-build"];
+const chapters = ["01-engine", "02-shapes", "03-objects", "04-input-motion", "05-collision", "06-ui", "07-appearance-assets", "08-debug-gameplay", "09-file-structure-svg", "10-game-build", "11-studio-workflow"];
 const CODE_THEME = "VSCode-2026Dark";
 const codeTheme = {
   base: "vs-dark",
@@ -119,6 +119,46 @@ function renderExplanationParagraph(parent, text) {
   parent.append(paragraph);
 }
 
+function renderVisuals(parent, media) {
+  if (!Array.isArray(media) || media.length === 0) return;
+  const visuals = document.createElement("div");
+  visuals.className = "tutorial-visuals";
+  for (const item of media) {
+    const figure = document.createElement("figure");
+    figure.className = "tutorial-media";
+    const image = document.createElement("img");
+    image.src = item.src;
+    image.alt = item.alt || item.title || "チュートリアルの図";
+    image.loading = "lazy";
+    const caption = document.createElement("figcaption");
+    caption.textContent = item.caption || item.title || "";
+    figure.append(image, caption);
+    visuals.append(figure);
+  }
+  parent.append(visuals);
+}
+
+function renderRelatedLinks(parent, links) {
+  if (!Array.isArray(links) || links.length === 0) return;
+  const wrapper = document.createElement("div");
+  wrapper.className = "chapter-links-panel";
+  const heading = document.createElement("h3");
+  heading.textContent = "関連ドキュメント";
+  wrapper.append(heading);
+  const list = document.createElement("ul");
+  for (const item of links) {
+    const entry = document.createElement("li");
+    const anchor = document.createElement("a");
+    anchor.href = item.href;
+    anchor.textContent = item.label;
+    anchor.target = item.target || "_self";
+    entry.append(anchor);
+    list.append(entry);
+  }
+  wrapper.append(list);
+  parent.append(wrapper);
+}
+
 function configureCodeTheme() {
   monaco.editor.defineTheme(CODE_THEME, codeTheme);
   monaco.editor.setTheme(CODE_THEME);
@@ -147,7 +187,13 @@ function renderChapter(chapter) {
   document.querySelector("#chapter-title").textContent = chapter.title;
   document.querySelector("#chapter-summary").textContent = chapter.summary;
   const explanation = document.querySelector("#chapter-explanation");
+  explanation.replaceChildren();
+  const intro = document.createElement("h2");
+  intro.textContent = "この章で学ぶこと";
+  explanation.append(intro);
   for (const paragraph of chapter.explanation) renderExplanationParagraph(explanation, paragraph);
+  renderVisuals(explanation, chapter.media);
+  renderRelatedLinks(explanation, chapter.links);
   applyMonacoSyntaxHighlighting();
   const exerciseList = document.createElement("ol");
   for (const exercise of chapter.exercises) renderText(exerciseList, "li", exercise);
@@ -265,6 +311,19 @@ function renderChapter(chapter) {
         const bridge = `<script>
           (() => {
             const example = ${JSON.stringify(index)};
+            const shellSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0f172a"/><circle cx="32" cy="32" r="18" fill="#38bdf8" opacity="0.8"/><path d="M21 32 L29 24 L29 28 L43 28 L43 36 L29 36 L29 40 Z" fill="#e0f2fe"/></svg>';
+            const assets = { ship: shellSvg };
+            globalThis.GameStudio = Object.freeze({
+              log: (...args) => console.log(...args),
+              warn: (...args) => console.warn(...args),
+              error: (...args) => console.error(...args),
+              assets: Object.freeze(assets),
+              assetUrl(name) {
+                const svg = this.assets[name];
+                if (typeof svg === "string") return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+                return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(shellSvg);
+              },
+            });
             const send = (kind, value) => parent.postMessage({ engineTutorial: ${JSON.stringify(chapter.slug)}, example, execution: ${current}, kind, value: String(value) }, "*");
             for (const level of ["log","info","warn","error"]) {
               const original = console[level].bind(console);

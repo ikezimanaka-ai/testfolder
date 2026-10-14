@@ -49,7 +49,7 @@ h2 { font-size: 13px; margin: 0; }
 .tree-action { flex: 0 0 auto; padding: .15rem .3rem; }
 .tree-row:hover { background: #1c2b42; }
 .tree-row.selected { color: #bae6fd; background: #153451; }
-.tree-row .tree-children { margin-left: .9rem; border-left: 1px solid #34445b; }
+.tree-children { list-style: none; margin: 0; padding: 0 0 0 .5rem; border-left: 1px solid #34445b; }
 .scope-row { display: flex; align-items: flex-start; gap: .15rem; }
 .scope-row details { flex: 1; min-width: 0; }
 .scope-row summary { list-style: disclosure-closed; }
@@ -57,6 +57,8 @@ h2 { font-size: 13px; margin: 0; }
 .tree-toggle { width: 1.15rem; padding: 0; border: 0; background: transparent; }
 .tree-indent { width: 1.15rem; flex: 0 0 1.15rem; }
 .tree-meta, .muted { color: var(--muted); font-size: 11px; }
+.context-menu { position: fixed; z-index: 50; display: flex; flex-direction: column; gap: .25rem; min-width: 180px; background: #111b2d; border: 1px solid var(--border); border-radius: 8px; padding: .45rem; box-shadow: 0 10px 24px rgba(0,0,0,.45); }
+.context-menu button { width: 100%; text-align: left; }
 .workspace-toolbar { flex: 0 0 auto; }
 .code-workspace { min-height: 0; flex: 1; display: flex; }
 #editor { min-width: 0; flex: 1; }

@@ -51,19 +51,83 @@ let consoleEntries = [];
 let runtimeDiagnostics = [];
 let sourceDiagnostics = [];
 let pendingDeleteFile = null;
+let clipboard = null;
+let projectSelection = [];
 
 function validFileName(name) {
-  return typeof name === "string" && /^[\w.-]+\.m?js$/i.test(name) && !name.includes("..");
+  return typeof name === "string" && name.trim() && !name.includes("/") && !name.includes("\\") && !name.includes("..") && !name.startsWith(".");
+}
+
+function validFolderName(name) {
+  return typeof name === "string" && name.trim() && !name.includes("/") && !name.includes("\\") && !name.includes("..") && !name.startsWith(".");
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function getEntryPath(entry) {
+  if (!entry) return "";
+  return typeof entry.path === "string" && entry.path ? entry.path.replace(/\\/g, "/") : entry.name || "";
+}
+
+function normalizeProjectEntry(entry, parentPath = "") {
+  if (!entry || typeof entry.name !== "string") throw new Error("ファイルまたはフォルダ名がありません。");
+  const name = entry.name.trim();
+  const pathValue = typeof entry.path === "string" && entry.path ? entry.path.replace(/\\/g, "/") : parentPath ? `${parentPath}/${name}` : name;
+  if (entry.kind === "folder") {
+    const folder = {
+      name,
+      path: pathValue,
+      kind: "folder",
+      expanded: typeof entry.expanded === "boolean" ? entry.expanded : true,
+      children: Array.isArray(entry.children) ? entry.children.map((child) => normalizeProjectEntry(child, pathValue)) : [],
+    };
+    if (entry.value !== undefined) delete folder.value;
+    return folder;
+  }
+  if (typeof entry.kind === "string" && entry.kind === "binary") {
+    const data = typeof entry.data === "string" ? entry.data : typeof entry.base64 === "string" ? entry.base64 : "";
+    if (!data) throw new Error(`バイナリファイル ${name} の内容が空です。`);
+    return {
+      name,
+      path: pathValue,
+      kind: "binary",
+      mimeType: typeof entry.mimeType === "string" ? entry.mimeType : "application/octet-stream",
+      data,
+    };
+  }
+  const source = typeof entry.value === "string" ? entry.value : "";
+  if (!source && typeof entry.data === "string" && entry.encoding === "base64") {
+    return {
+      name,
+      path: pathValue,
+      kind: "text",
+      value: atob(entry.data),
+    };
+  }
+  return {
+    name,
+    path: pathValue,
+    kind: "text",
+    value: source,
+  };
 }
 
 function normalizeProject(value) {
   if (!value || !Array.isArray(value.files)) throw new Error("プロジェクトにfiles配列がありません。");
-  if (!value.files.every((file) => file && validFileName(file.name) && typeof file.value === "string")) {
-    throw new Error("ファイル名またはJavaScriptソースが不正です。");
+  const files = value.files.map((entry) => normalizeProjectEntry(entry));
+  if (!files.length || new Set(files.map((entry) => getEntryPath(entry))).size !== files.length) {
+    throw new Error("ファイルがないか、同名または同じパスの項目が重複しています。");
   }
-  const files = value.files.map(({ name, value: source }) => ({ name, value: source }));
-  if (!files.length || new Set(files.map((file) => file.name)).size !== files.length) throw new Error("JavaScriptファイルがないか、同名ファイルが重複しています。");
-  if (files.some((file) => ["engine.js", "ui-objects.js"].includes(file.name))) throw new Error("engine.js と ui-objects.js は予約済みファイル名です。");
+  if (files.some((entry) => entry.kind !== "folder" && ["engine.js", "ui-objects.js"].includes(entry.name))) {
+    throw new Error("engine.js と ui-objects.js は予約済みファイル名です。");
+  }
   if (value.assets !== undefined && !Array.isArray(value.assets)) throw new Error("SVG assetsは配列で指定してください。");
   const inputAssets = value.assets ?? [];
   if (!inputAssets.every((asset) => asset && typeof asset.name === "string" && typeof asset.svg === "string")) {
@@ -73,9 +137,10 @@ function normalizeProject(value) {
   if (assets.some((asset) => !asset.name) || new Set(assets.map((asset) => asset.name)).size !== assets.length) {
     throw new Error("SVGアセット名が空か、同名アセットが重複しています。");
   }
+  const activeFile = typeof value.activeFile === "string" ? value.activeFile : files[0]?.path ?? "";
   return {
     title: typeof value.title === "string" ? value.title : "project",
-    activeFile: files.some((file) => file.name === value.activeFile) ? value.activeFile : files[0].name,
+    activeFile: files.some((entry) => entry.kind !== "folder" && getEntryPath(entry) === activeFile) ? activeFile : files.find((entry) => entry.kind !== "folder")?.path ?? "",
     files,
     assets,
   };
@@ -91,12 +156,48 @@ function loadProject() {
   }
 }
 
+function flattenProjectEntries(entries = project.files, output = []) {
+  for (const entry of entries) {
+    output.push(entry);
+    if (entry.kind === "folder" && Array.isArray(entry.children)) flattenProjectEntries(entry.children, output);
+  }
+  return output;
+}
+
+function flattenProjectFiles(entries = project.files) {
+  return flattenProjectEntries(entries).filter((entry) => entry && entry.kind !== "folder");
+}
+
+function findEntryByPath(entries, path) {
+  for (const entry of entries) {
+    if (getEntryPath(entry) === path) return entry;
+    if (entry.kind === "folder" && Array.isArray(entry.children)) {
+      const found = findEntryByPath(entry.children, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function parentPathOf(path) {
+  if (!path) return "";
+  const index = path.lastIndexOf("/");
+  return index >= 0 ? path.slice(0, index) : "";
+}
+
+function entryDisplayName(entry) {
+  return entry.kind === "folder" ? `📁 ${entry.name}` : entry.kind === "binary" ? `📦 ${entry.name}` : `📄 ${entry.name}`;
+}
+
 function activeFile() {
-  return project.files.find((file) => file.name === project.activeFile) ?? project.files[0];
+  const activePath = project.activeFile || project.files.find((entry) => entry.kind !== "folder")?.path || "";
+  return findEntryByPath(project.files, activePath) || project.files.find((entry) => entry.kind !== "folder") || null;
 }
 
 function syncActiveSource() {
-  if (editor && activeFile()) activeFile().value = editor.getValue();
+  const file = activeFile();
+  if (!editor || !file || file.kind === "folder" || file.kind === "binary") return;
+  file.value = editor.getValue();
 }
 
 function saveProject() {
@@ -120,54 +221,186 @@ function scheduleSave() {
   autosaveTimer = setTimeout(saveProject, 500);
 }
 
+function ensureUniqueName(baseName, parentPath = "") {
+  const parentLabel = parentPath ? parentPath : "";
+  const original = typeof baseName === "string" ? baseName.trim() || "item" : "item";
+  const position = original.lastIndexOf(".");
+  const extension = position > 0 ? original.slice(position) : "";
+  const stem = position > 0 ? original.slice(0, position) : original;
+  const normalizedStem = stem.replace(/\(\d+\)$/, "");
+  const folderEntries = parentLabel ? (findEntryByPath(project.files, parentLabel)?.kind === "folder" ? findEntryByPath(project.files, parentLabel).children : []) : project.files;
+  const fileNames = new Set((folderEntries || []).map((entry) => entry.name));
+
+  const sameStemNames = Array.from(fileNames).filter((name) => {
+    const filePosition = name.lastIndexOf(".");
+    if (filePosition < 0 || name.slice(filePosition) !== extension) return false;
+    const fileStem = name.slice(0, filePosition);
+    return fileStem === normalizedStem || (/\(\d+\)$/.test(fileStem) && fileStem.replace(/\(\d+\)$/, "") === normalizedStem);
+  });
+
+  if (!fileNames.has(original) && sameStemNames.length === 0) return original;
+
+  let nextIndex = 2;
+  for (const name of sameStemNames) {
+    const filePosition = name.lastIndexOf(".");
+    const fileStem = name.slice(0, filePosition);
+    const match = fileStem.match(/\((\d+)\)$/);
+    if (match && fileStem.replace(/\(\d+\)$/, "") === normalizedStem) {
+      nextIndex = Math.max(nextIndex, Number(match[1]) + 1);
+    }
+  }
+
+  let candidate = `${normalizedStem}(${nextIndex})${extension}`;
+  while (fileNames.has(candidate)) {
+    nextIndex += 1;
+    candidate = `${normalizedStem}(${nextIndex})${extension}`;
+  }
+  return candidate;
+}
+
+function insertEntry(entry, parentPath = "") {
+  const target = parentPath ? findEntryByPath(project.files, parentPath) : null;
+  const container = target && target.kind === "folder" ? target.children : project.files;
+  if (Array.isArray(container)) {
+    container.push(entry);
+    return entry;
+  }
+  return null;
+}
+
+function removeEntryByPath(entries, path) {
+  const index = entries.findIndex((entry) => getEntryPath(entry) === path);
+  if (index >= 0) {
+    entries.splice(index, 1);
+    return true;
+  }
+  for (const entry of entries) {
+    if (entry.kind === "folder" && Array.isArray(entry.children)) {
+      if (removeEntryByPath(entry.children, path)) return true;
+    }
+  }
+  return false;
+}
+
+function duplicateEntry(entry, parentPath = "") {
+  const clone = structuredClone(entry);
+  const baseName = entry.name;
+  const nextName = ensureUniqueName(baseName, parentPath);
+  clone.name = nextName;
+  clone.path = parentPath ? `${parentPath}/${nextName}` : nextName;
+  if (clone.kind === "folder") {
+    clone.children = (Array.isArray(entry.children) ? entry.children : []).map((child) => duplicateEntry(child, clone.path));
+    clone.expanded = true;
+  }
+  return clone;
+}
+
+function updateChildPaths(entry, parentPath = "") {
+  const nextPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+  entry.path = nextPath;
+  if (entry.kind === "folder" && Array.isArray(entry.children)) {
+    entry.children.forEach((child) => updateChildPaths(child, nextPath));
+  }
+}
+
+function setProjectSelection(paths, additive = false) {
+  const target = Array.from(new Set(paths.filter(Boolean)));
+  if (additive) {
+    projectSelection = Array.from(new Set([...projectSelection, ...target]));
+  } else {
+    projectSelection = target;
+  }
+}
+
+function getSelectedEntries() {
+  return projectSelection
+    .map((path) => findEntryByPath(project.files, path))
+    .filter(Boolean);
+}
+
 function renderProjectTree() {
   filesList.replaceChildren();
   const section = document.createElement("li");
   section.className = "tree-meta";
-  section.textContent = "JavaScript";
+  section.textContent = "ファイル";
   filesList.append(section);
-  for (const file of project.files) {
-    const row = document.createElement("li");
-    const button = document.createElement("button");
-    button.className = `tree-row${file.name === project.activeFile ? " selected" : ""}`;
-    button.textContent = `📄 ${file.name}`;
-    button.addEventListener("click", () => switchFile(file.name));
-    const actions = document.createElement("div");
-    actions.className = "file-actions";
-    actions.append(button);
-    const rename = document.createElement("button");
-    rename.type = "button";
-    rename.className = "tree-action";
-    rename.title = "名前を変更";
-    rename.textContent = "✎";
-    rename.addEventListener("click", () => renameFile(file, actions));
-    actions.append(rename);
-    if (project.files.length > 1) {
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "tree-action";
-      remove.title = pendingDeleteFile === file.name ? "もう一度押して削除" : "削除";
-      remove.textContent = pendingDeleteFile === file.name ? "?" : "×";
-      remove.addEventListener("click", () => {
-        if (pendingDeleteFile !== file.name) {
-          pendingDeleteFile = file.name;
-          status.textContent = `${file.name} を削除するには「?」をもう一度押してください`;
+
+  const renderEntries = (entries, depth = 0) => {
+    const list = document.createElement("ul");
+    list.className = "tree-children";
+    entries.forEach((entry) => {
+      const row = document.createElement("li");
+      const wrapper = document.createElement("div");
+      wrapper.className = "scope-row";
+      wrapper.style.marginLeft = `${depth * 14}px`;
+      wrapper.dataset.path = getEntryPath(entry);
+      wrapper.draggable = true;
+      wrapper.addEventListener("dragstart", (event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-entry-path", getEntryPath(entry));
+        setProjectSelection([getEntryPath(entry)], event.ctrlKey || event.metaKey);
+      });
+      wrapper.addEventListener("dragover", (event) => {
+        if (entry.kind === "folder") {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
+      });
+      wrapper.addEventListener("drop", (event) => {
+        event.preventDefault();
+        if (entry.kind !== "folder") return;
+        const sourcePath = event.dataTransfer.getData("application/x-entry-path");
+        if (!sourcePath || sourcePath === getEntryPath(entry)) return;
+        moveEntryToFolder(sourcePath, getEntryPath(entry));
+      });
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "tree-toggle";
+      toggle.textContent = entry.kind === "folder" ? (entry.expanded ? "∨" : ">") : "";
+      toggle.disabled = entry.kind !== "folder";
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (entry.kind === "folder") {
+          entry.expanded = !entry.expanded;
+          renderProjectTree();
+        }
+      });
+
+      const button = document.createElement("button");
+      const isSelected = projectSelection.includes(getEntryPath(entry));
+      button.type = "button";
+      button.className = `tree-row${isSelected ? " selected" : ""}`;
+      button.textContent = entryDisplayName(entry);
+      button.addEventListener("click", (event) => {
+        if (entry.kind === "folder") {
+          entry.expanded = !entry.expanded;
           renderProjectTree();
           return;
         }
-        project.files = project.files.filter((candidate) => candidate !== file);
-        pendingDeleteFile = null;
-        if (project.activeFile === file.name) project.activeFile = project.files[0].name;
-        editor.getModel().setValue(activeFile().value);
-        renderProjectTree();
-        updateSymbols();
-        scheduleSave();
+        const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+        setProjectSelection([getEntryPath(entry)], additive ? true : false);
+        switchFile(getEntryPath(entry));
       });
-      actions.append(remove);
-    }
-    row.append(actions);
-    filesList.append(row);
-  }
+      button.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        setProjectSelection([getEntryPath(entry)], false);
+        openContextMenu(event, entry);
+      });
+
+      wrapper.append(toggle, button);
+      row.append(wrapper);
+      if (entry.kind === "folder" && entry.expanded && Array.isArray(entry.children) && entry.children.length) {
+        const nested = renderEntries(entry.children, depth + 1);
+        row.append(nested);
+      }
+      list.append(row);
+    });
+    return list;
+  };
+
+  filesList.append(renderEntries(project.files));
+
   const assetsHeading = document.createElement("li");
   assetsHeading.className = "tree-meta";
   assetsHeading.textContent = "SVGアセット";
@@ -190,10 +423,20 @@ function renderProjectTree() {
   });
 }
 
-function switchFile(name) {
+function switchFile(targetPath) {
   syncActiveSource();
-  project.activeFile = name;
+  const resolved = findEntryByPath(project.files, targetPath) || findEntryByPath(project.files, project.activeFile) || activeFile();
+  if (!resolved || resolved.kind === "folder") return;
+  project.activeFile = getEntryPath(resolved);
   const file = activeFile();
+  if (!editor || !file) return;
+  if (file.kind === "binary") {
+    const model = editor.getModel();
+    model.setValue(`/* ${file.name} はバイナリファイルです。テキストとして編集できません。 */\n`);
+    monaco.editor.setModelLanguage(model, "plaintext");
+    renderProjectTree();
+    return;
+  }
   const model = editor.getModel();
   model.setValue(file.value);
   monaco.editor.setModelLanguage(model, "javascript");
@@ -203,55 +446,231 @@ function switchFile(name) {
 }
 
 function renameFile(file, container) {
-  container.replaceChildren();
-  const input = document.createElement("input");
-  input.value = file.name;
-  input.setAttribute("aria-label", "新しいファイル名");
-  const finish = (save) => {
-    if (save) {
-      const name = input.value.trim();
-      if (!validFileName(name) || ["engine.js", "ui-objects.js"].includes(name) ||
-          project.files.some((candidate) => candidate !== file && candidate.name === name)) {
-        addConsole("warn", ["ファイル名が不正か、すでに使われています"]);
-      } else {
-        const previous = file.name;
-        file.name = name;
-        if (project.activeFile === previous) project.activeFile = name;
-      }
-    }
-    renderProjectTree();
-    scheduleSave();
-  };
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") finish(true);
-    if (event.key === "Escape") finish(false);
-  });
-  const save = document.createElement("button");
-  save.type = "button";
-  save.textContent = "保存";
-  save.addEventListener("click", () => finish(true));
-  container.append(input, save);
-  input.focus();
-  input.select();
+  const name = window.prompt("新しい名前を入力", file.name);
+  if (name == null) return;
+  const nextName = name.trim();
+  if (!validFileName(nextName) && !(file.kind === "folder" && validFolderName(nextName))) {
+    addConsole("warn", ["名前が不正です"]);
+    return;
+  }
+  const parent = parentPathOf(getEntryPath(file));
+  const nextPath = parent ? `${parent}/${nextName}` : nextName;
+  const exists = flattenProjectEntries(project.files).some((entry) => getEntryPath(entry) !== getEntryPath(file) && getEntryPath(entry) === nextPath);
+  if (exists || ["engine.js", "ui-objects.js"].includes(nextName)) {
+    addConsole("warn", ["同名の項目がすでに存在します"]);
+    return;
+  }
+  if (file.kind === "folder") {
+    const keep = file.name;
+    file.name = nextName;
+    updateChildPaths(file, parent);
+    if (project.activeFile === `${parent}/${keep}`) project.activeFile = nextPath;
+  } else {
+    const previous = getEntryPath(file);
+    file.name = nextName;
+    file.path = nextPath;
+    if (project.activeFile === previous) project.activeFile = nextPath;
+  }
+  renderProjectTree();
+  scheduleSave();
 }
 
-function addFile() {
-  let name = `script-${project.files.length + 1}.js`;
-  while (project.files.some((file) => file.name === name)) name = `script-${Number(name.match(/\d+/)?.[0] || 0) + 1}.js`;
-  const file = { name, value: 'GameStudio.log("新しいファイル");\n' };
-  project.files.push(file);
-  switchFile(name);
+function addFile(parentPath = "") {
+  const baseName = `script-${flattenProjectEntries(project.files).filter((entry) => entry.kind !== "folder").length + 1}.js`;
+  const name = ensureUniqueName(baseName, parentPath);
+  const file = { name, path: parentPath ? `${parentPath}/${name}` : name, kind: "text", value: 'GameStudio.log("新しいファイル");\n' };
+  insertEntry(file, parentPath);
+  project.activeFile = file.path;
+  renderProjectTree();
+  switchFile(file.path);
+}
+
+function addFolder(parentPath = "") {
+  const name = ensureUniqueName("new-folder", parentPath);
+  const entry = { name, path: parentPath ? `${parentPath}/${name}` : name, kind: "folder", expanded: true, children: [] };
+  insertEntry(entry, parentPath);
+  projectSelection = [entry.path];
+  renderProjectTree();
+  scheduleSave();
+}
+
+function downloadEntry(entry) {
+  if (entry.kind === "folder") {
+    addConsole("warn", ["フォルダはダウンロードできません"]);
+    return;
+  }
+  const isBinary = entry.kind === "binary";
+  const blob = isBinary
+    ? new Blob([Uint8Array.from(atob(entry.data), (char) => char.charCodeAt(0))], { type: entry.mimeType || "application/octet-stream" })
+    : new Blob([entry.value], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement("a"), { href: url, download: entry.name });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadBinaryFile(file) {
+  downloadEntry(file);
+}
+
+async function addFileFromLocal(file, parentPath = "") {
+  const sanitized = file.name.replace(/[\\/]+/g, "_");
+  const name = sanitized && !flattenProjectEntries(project.files).some((entry) => entry.name === sanitized && parentPathOf(getEntryPath(entry)) === parentPath)
+    ? sanitized
+    : `${Date.now()}-${sanitized || "file"}`;
+  const entryPath = parentPath ? `${parentPath}/${name}` : name;
+  const isText = file.type.startsWith("text/") || /\.(js|ts|json|md|txt|html|css|svg|xml|csv)$/i.test(name);
+  const entry = isText
+    ? { name, path: entryPath, kind: "text", value: await file.text() }
+    : { name, path: entryPath, kind: "binary", mimeType: file.type || "application/octet-stream", data: arrayBufferToBase64(await file.arrayBuffer()) };
+  insertEntry(entry, parentPath);
+  project.activeFile = entry.path;
+  renderProjectTree();
+  switchFile(entry.path);
+  scheduleSave();
+}
+
+function openContextMenu(event, entry) {
+  let menu = $("#project-context-menu");
+  if (!menu) {
+    menu = document.createElement("div");
+    menu.id = "project-context-menu";
+    menu.className = "context-menu";
+    menu.hidden = true;
+    document.body.append(menu);
+  }
+  const selected = getSelectedEntries();
+  const active = selected.length ? selected : [entry];
+  const targetPath = getEntryPath(entry);
+  const isFile = entry.kind !== "folder";
+  const hasClipboard = Boolean(clipboard && clipboard.entries.length);
+  menu.innerHTML = ``;
+  const items = [
+    { label: "新しいファイル", action: () => addFile(targetPath) },
+    { label: "空フォルダ", action: () => addFolder(targetPath) },
+    { label: "ローカルアップロード", action: () => $("#local-file-input").click() },
+    { label: "名前を変更", action: () => renameFile(entry, null) },
+    { label: "コピー", action: () => { clipboard = { mode: "copy", entries: active.map((item) => structuredClone(item)) }; addConsole("log", ["コピーしました"]) ; } },
+    { label: "切り取り", action: () => { clipboard = { mode: "cut", entries: active.map((item) => structuredClone(item)) }; addConsole("log", ["切り取りしました"]) ; } },
+    { label: "貼り付け", action: () => pasteClipboard(targetPath), enabled: hasClipboard },
+    { label: "削除", action: () => deleteSelectedEntries(), enabled: active.length > 0 },
+    { label: "ダウンロード", action: () => isFile && downloadEntry(entry), enabled: isFile },
+  ];
+  items.forEach((item) => {
+    if (!item.enabled && item.enabled !== undefined) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = item.label;
+    button.addEventListener("click", () => {
+      item.action();
+      hideContextMenu();
+    });
+    menu.append(button);
+  });
+  menu.style.left = `${event.clientX}px`;
+  menu.style.top = `${event.clientY}px`;
+  menu.hidden = false;
+}
+
+function hideContextMenu() {
+  const menu = $("#project-context-menu");
+  if (menu) menu.hidden = true;
+}
+
+function deleteSelectedEntries() {
+  const selected = getSelectedEntries();
+  if (!selected.length) return;
+  selected.forEach((entry) => removeEntryByPath(project.files, getEntryPath(entry)));
+  projectSelection = [];
+  if (project.activeFile && !findEntryByPath(project.files, project.activeFile)) {
+    const next = flattenProjectEntries(project.files).find((entry) => entry.kind !== "folder");
+    project.activeFile = next ? getEntryPath(next) : "";
+  }
+  renderProjectTree();
+  scheduleSave();
+}
+
+function moveEntryToFolder(sourcePath, targetFolderPath) {
+  if (!sourcePath || !targetFolderPath) return;
+  const sourceEntry = findEntryByPath(project.files, sourcePath);
+  const targetFolder = findEntryByPath(project.files, targetFolderPath);
+  if (!sourceEntry || !targetFolder || targetFolder.kind !== "folder") return;
+  if (sourceEntry === targetFolder || getEntryPath(sourceEntry).startsWith(`${getEntryPath(targetFolder)}/`)) return;
+  removeEntryByPath(project.files, sourcePath);
+  sourceEntry.path = `${targetFolderPath}/${sourceEntry.name}`;
+  if (sourceEntry.kind === "folder") {
+    sourceEntry.children.forEach((child) => updateChildPaths(child, sourceEntry.path));
+  }
+  targetFolder.children.push(sourceEntry);
+  targetFolder.expanded = true;
+  projectSelection = [sourceEntry.path];
+  renderProjectTree();
+  scheduleSave();
+}
+
+function pasteClipboard(targetPath = "") {
+  if (!clipboard || !clipboard.entries.length) return;
+  const parent = targetPath ? findEntryByPath(project.files, targetPath) : null;
+  const targetFolder = parent && parent.kind === "folder" ? parent : null;
+  const destination = targetFolder ? getEntryPath(targetFolder) : "";
+  clipboard.entries.forEach((entry) => {
+    const copied = duplicateEntry(entry, destination);
+    if (targetFolder) {
+      targetFolder.children.push(copied);
+      targetFolder.expanded = true;
+    } else {
+      project.files.push(copied);
+    }
+  });
+  if (clipboard.mode === "cut") {
+    clipboard.entries.forEach((entry) => removeEntryByPath(project.files, getEntryPath(entry)));
+  }
+  clipboard = null;
+  renderProjectTree();
+  scheduleSave();
+}
+
+function createUniqueSvgAssetName(baseName = "asset") {
+  const source = typeof baseName === "string" && baseName.trim() ? baseName.trim() : "asset";
+  const normalized = source.replace(/\.[^./]+$/, "") || "asset";
+  const taken = new Set(project.assets.map((asset) => asset.name));
+  let index = 1;
+  let candidate = normalized;
+  while (taken.has(candidate)) {
+    index += 1;
+    candidate = `${normalized}(${index - 1})`;
+  }
+  return candidate;
 }
 
 function addSvgAsset() {
-  let next = project.assets.length + 1;
-  while (project.assets.some((asset) => asset.name === `asset-${next}`)) next++;
-  const name = `asset-${next}`;
+  const name = createUniqueSvgAssetName(`asset-${project.assets.length + 1}`);
   const asset = { name, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360"></svg>` };
   project.assets.push(asset);
   renderProjectTree();
   openAsset(asset);
   scheduleSave();
+}
+
+function addCurrentSvgToProject() {
+  if (!svgEditor || !svgEditor.currentAsset) {
+    addConsole("warn", ["SVGアセットが選択されていません"]);
+    return;
+  }
+  const asset = svgEditor.currentAsset;
+  const fileName = ensureUniqueName(`${asset.name}.svg`);
+  const entry = {
+    name: fileName,
+    path: fileName,
+    kind: "text",
+    value: sanitizeSvgSource(asset.svg),
+  };
+  insertEntry(entry);
+  project.activeFile = entry.path;
+  renderProjectTree();
+  switchFile(entry.path);
+  scheduleSave();
+  addConsole("log", [`SVGをファイルツリーへ追加しました: ${fileName}`]);
 }
 
 function openAsset(asset) {
@@ -306,18 +725,24 @@ function base64DataUrl(source) {
 }
 
 function normalizeModulePath(from, specifier) {
-  const parts = specifier.startsWith(".") ? from.split("/").slice(0, -1) : [];
-  for (const part of (specifier.startsWith(".") ? specifier : specifier).split("/")) {
+  const fromText = typeof from === "string" ? from.replace(/\\/g, "/") : "";
+  const parts = specifier.startsWith(".") ? fromText.split("/").slice(0, -1) : [];
+  for (const part of specifier.split("/")) {
     if (!part || part === ".") continue;
-    if (part === "..") parts.pop();
-    else parts.push(part);
+    if (part === "..") {
+      if (parts.length) parts.pop();
+      continue;
+    }
+    parts.push(part);
   }
   return parts.join("/");
 }
 
 function rewriteImports(source, fileName) {
+  if (typeof source !== "string" || !source) return source;
+  if (typeof fileName !== "string" || !fileName || fileName.startsWith("[object ")) return source;
   return source.replace(/((?:from\s*|import\s*)["'])([^"']+)(["'])/g, (full, before, specifier, after) => {
-    if (!specifier.startsWith(".")) return full;
+    if (typeof specifier !== "string" || !specifier.startsWith(".")) return full;
     const normalized = normalizeModulePath(fileName, specifier);
     const resolved = normalized === "engine.js" ? "engine.js" : normalized === "ui-objects.js" ? "ui-objects.js" : normalized;
     return `${before}studio/${resolved}${after}`;
@@ -343,13 +768,21 @@ async function runGame() {
         return response.text();
       }),
     ]);
+    const projectFiles = flattenProjectFiles();
     const moduleSources = new Map([
       ["engine.js", engineSource],
       ["ui-objects.js", rewriteImports(uiSource, "ui-objects.js")],
-      ...project.files.map((file) => [file.name, rewriteImports(file.value, file.name)]),
+      ...projectFiles
+        .filter((file) => typeof getEntryPath(file) === "string" && getEntryPath(file))
+        .map((file) => [getEntryPath(file), rewriteImports(file.value, getEntryPath(file))]),
     ]);
     const imports = Object.fromEntries([...moduleSources].map(([name, source]) => [`studio/${name}`, base64DataUrl(source)]));
-    const entry = project.files.some((file) => file.name === "main.js") ? "main.js" : project.activeFile;
+    const entry = projectFiles.find((file) => {
+      const path = getEntryPath(file);
+      return typeof path === "string" && path && (path === project.activeFile || file.name === "main.js");
+    }) || projectFiles.find((file) => typeof getEntryPath(file) === "string" && getEntryPath(file)) || null;
+    const rawEntryModule = entry ? getEntryPath(entry) : "main.js";
+    const entryModule = typeof rawEntryModule === "string" && rawEntryModule && !rawEntryModule.startsWith("[object ") ? rawEntryModule : "main.js";
     const bridge = `<script>
       (() => {
         const runId = ${JSON.stringify(runId)};
@@ -394,7 +827,7 @@ async function runGame() {
       })();
     </script>`;
     const importMap = `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game"></canvas>${bridge}${importMap}<script type="module">import("studio/${entry}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
+    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game"></canvas>${bridge}${importMap}<script type="module">import("studio/${entryModule}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
     preview.srcdoc = documentText;
     $("#run-state").textContent = "実行中";
     $("#run-state").style.color = "#86efac";
@@ -732,7 +1165,7 @@ function renderDiagnostics() {
     location.textContent = `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}` : ""}`;
     row.append(location, document.createTextNode(diagnostic.message));
     row.addEventListener("click", () => {
-      if (diagnostic.file && project.files.some((file) => file.name === diagnostic.file)) {
+      if (diagnostic.file && findEntryByPath(project.files, diagnostic.file)) {
         switchFile(diagnostic.file);
         jumpToLine(diagnostic.line || 1);
       }
@@ -815,6 +1248,13 @@ function init() {
     event.target.value = "";
   });
   $("#new-file").addEventListener("click", addFile);
+  $("#new-generic-file").addEventListener("click", () => $("#local-file-input").click());
+  $("#svg-add-to-project").addEventListener("click", addCurrentSvgToProject);
+  $("#local-file-input").addEventListener("change", async (event) => {
+    const files = [...(event.target.files ?? [])];
+    for (const file of files) await addFileFromLocal(file);
+    event.target.value = "";
+  });
   $("#project-name").addEventListener("input", scheduleSave);
   $("#symbol-filter").addEventListener("input", updateSymbols);
   $("#console-filter").addEventListener("input", renderConsole);
@@ -834,6 +1274,12 @@ function init() {
   });
   window.addEventListener("message", handleRuntimeMessage);
   window.addEventListener("beforeunload", syncActiveSource);
+  document.addEventListener("click", (event) => {
+    const menu = $("#project-context-menu");
+    if (menu && !menu.hidden && !event.target.closest("#project-context-menu")) {
+      hideContextMenu();
+    }
+  });
   $("#project-name").value = project.title;
   if (typeof window.require !== "function") {
     status.textContent = "Monaco CDNを読み込めませんでした";

@@ -47,6 +47,49 @@ button:hover { background: #28415f; }
 .chapter-intro { padding: 20px 24px; margin-bottom: 17px; }
 .chapter-intro h2 { margin-top: 0; color: #bae6fd; }
 .chapter-intro p { max-width: 100ch; margin: .8rem 0; }
+.tutorial-visuals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 1.2rem 0 1rem;
+}
+.tutorial-media {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.75);
+}
+.tutorial-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  background: #020817;
+}
+.tutorial-media figcaption {
+  margin-top: .6rem;
+  color: var(--muted);
+  font-size: .82rem;
+}
+.chapter-links-panel {
+  margin: 1.1rem 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.5);
+}
+.chapter-links-panel h3 {
+  margin: 0 0 .6rem;
+  color: #bae6fd;
+  font-size: 1rem;
+}
+.chapter-links-panel ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.chapter-links-panel li + li { margin-top: .35rem; }
 .tutorial-code-snippet {
   position: relative;
   display: block;

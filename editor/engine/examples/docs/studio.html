@@ -9,6 +9,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="../index.html">Engine Studio</a>
+    <a class="brand" href="./tutorials/index.html" style="font-size: 0.85rem; opacity: 0.9;">チュートリアル</a>
     <input id="project-name" aria-label="プロジェクト名" value="starter-project">
     <div class="toolbar">
       <button id="run" title="ゲームを実行">▶ 実行</button>
@@ -23,7 +24,14 @@
 
   <main class="studio-layout">
     <aside class="panel project-panel">
-      <div class="panel-heading"><h2>プロジェクト</h2><button id="new-file" title="JavaScriptファイルを追加">＋ JS</button></div>
+      <div class="panel-heading">
+        <h2>プロジェクト</h2>
+        <div class="toolbar compact">
+          <button id="new-file" title="JavaScriptファイルを追加">＋ JS</button>
+          <button id="new-generic-file" title="一般ファイルを追加">＋ ファイル</button>
+          <input id="local-file-input" type="file" multiple hidden>
+        </div>
+      </div>
       <ul id="project-tree" class="tree-list" aria-label="プロジェクトファイル"></ul>
     </aside>
 
@@ -59,6 +67,7 @@
           <button id="svg-undo" title="元に戻す">↶</button>
           <button id="svg-redo" title="やり直す">↷</button>
           <button id="svg-source">SVGソース</button>
+          <button id="svg-add-to-project" title="現在のSVGをファイルツリーに追加">ファイルツリーにこのSVGを追加</button>
         </div>
         <p id="svg-tool-hint" class="svg-tool-hint">図形ツールを選んでください。</p>
         <div id="svg-editor-root" class="svg-editor-root"></div>

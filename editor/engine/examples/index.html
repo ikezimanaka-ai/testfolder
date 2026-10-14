@@ -5,58 +5,163 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Examples Home</title>
   <style>
-    body { margin: 0; font-family: sans-serif; background: #020817; color: #e2e8f0; }
+    :root {
+      color-scheme: dark;
+      --bg: #020817;
+      --panel: rgba(15,23,42,.96);
+      --panel-2: #0f172a;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #7dd3fc;
+      --accent-strong: #38bdf8;
+      --good: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 80px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
-    .card { background: rgba(15,23,42,.92); border: 1px solid #334155; border-radius: 14px; padding: 18px; }
-    a { color: #7dd3fc; text-decoration: none; }
-    h1, h2 { color: #f8fafc; }
-    ul { line-height: 2; padding-left: 18px; }
+    h1, h2, h3 { color: #f8fafc; }
+    .hero { margin-bottom: 22px; }
+    .hero p { margin: 8px 0 0; color: var(--muted); line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .card h2 { margin: 0 0 12px; font-size: 1.15rem; }
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+    .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #10263f; color: #dbeafe; border: 1px solid #1d4f7f; font-size: 12px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: #d8f5ff; }
+    ul { line-height: 1.8; padding-left: 18px; margin: 0; }
+    pre {
+      margin: 12px 0 0; padding: 12px 14px; overflow: auto; border-radius: 10px; background: #0b1220; border: 1px solid #1f2d3d; color: #dbeafe; font-size: 12px; line-height: 1.5;
+    }
+    .mini-nav { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .mini-nav a { display: inline-block; padding: 10px 14px; border-radius: 10px; background: #0b1220; border: 1px solid var(--border); }
+    code { font-family: ui-monospace, SFMono-Regular, monospace; }
+    .muted { color: var(--muted); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Examples Home</h1>
+    <header class="hero">
+      <h1>Examples Home</h1>
+      <p>
+        このページでは「仕組みの説明」と「ゲームの使い方」を分けて見ます。<br>
+        使う機能の説明はチュートリアルに、ゲームの具体例はここで見て、各ゲームの動かし方と関連コード例を確認できます。
+      </p>
+      <div class="mini-nav">
+        <a href="../index.html">Project Home</a>
+        <a href="./docs/studio.html">Studio</a>
+        <a href="./docs/tutorials/index.html">チュートリアル一覧</a>
+        <a href="./docs/docs.html">API 参照</a>
+      </div>
+    </header>
+
+    <section class="card" style="margin-bottom:18px">
+      <h2>1. 初期からあるJSファイルとその役割</h2>
+      <div class="pill-row">
+        <span class="pill">engine.js</span>
+        <span class="pill">ui-objects.js</span>
+        <span class="pill">docs / studio</span>
+      </div>
+      <ul>
+        <li><strong>engine.js</strong>: ゲームの起動、Display・GameObject、入力、衝突判定などの基本動作をまとめたコア。<br>使うときは <code>import { Engine, Display, GameObject, INPUT, Shapes } from "./engine.js";</code> のように使う。</li>
+        <li><strong>ui-objects.js</strong>: <code>TextObject</code>, <code>ButtonObject</code>, <code>BarObject</code>, <code>SliderObject</code> などのUIオブジェクト。</li>
+        <li><strong>examples/docs/*.html</strong>: 実際のコード例、テスト、Monacoエディター、SVGアセット編集用の開発ページ。</li>
+        <li><strong>examples/docs/tutorials/*.html</strong>: 機能ごとの使い方とコード例。</li>
+      </ul>
+    </section>
+
     <div class="grid">
-      <div class="card">
-        <h2>ドキュメント / 編集</h2>
+      <article class="card">
+        <h2>計算クイズ</h2>
+        <div class="pill-row"><span class="pill">TextObject</span><span class="pill">ButtonObject</span><span class="pill">入力</span></div>
+        <p class="muted">ボタンと表示を組み合わせて、出題・入力・判定を作る例。</p>
+        <pre><code>const question = engine.addObject(world, new TextObject("問題", { x: 400, y: 100, anchor: "middle" }));
+const newButton = engine.addObject(world, new ButtonObject("問題を出す", { x: 190, y: 275 }));</code></pre>
         <ul>
-          <li><a href="./docs/docs.html">詳細ドキュメント</a></li>
-          <li><a href="./docs/tests.html">機能別テスト</a></li>
-          <li><a href="./docs/editor.html">Monaco Editor</a></li>
-          <li><a href="../index.html">Project Home</a></li>
+          <li><a href="./calculator-quiz.html">プレイ</a></li>
+          <li><a href="./calculator-quiz-explanation.html">解説</a></li>
+          <li><a href="./docs/tutorials/06-ui.html">UIの使い方</a></li>
+          <li><a href="./docs/tutorials/04-input-motion.html">入力の使い方</a></li>
         </ul>
-      </div>
+      </article>
 
-      <div class="card">
-        <h2>サンプルゲーム</h2>
+      <article class="card">
+        <h2>シューター</h2>
+        <div class="pill-row"><span class="pill">INPUT</span><span class="pill">GameObject</span><span class="pill">BarObject</span></div>
+        <p class="muted">移動、発射、敵生成、HPバーを一つのゲームにまとめる例。</p>
+        <pre><code>if (INPUT.onKey("ArrowLeft")) this.moveX(-260 * dt);
+if (INPUT.onKey("Space") && cooldown <= 0) {
+  engine.addObject(world, new Shot(this.x, this.y));
+}</code></pre>
         <ul>
-          <li><a href="./calculator-quiz.html">計算クイズ</a></li>
-          <li><a href="./calculator-quiz-explanation.html">計算クイズ解説</a></li>
-          <li><a href="./shooter.html">シューター</a></li>
-          <li><a href="./shooter-explanation.html">シューター解説</a></li>
-          <li><a href="./dodge-patterns.html">攻撃をよける</a></li>
-          <li><a href="./dodge-patterns-explanation.html">回避解説</a></li>
-          <li><a href="./snake.html">へび</a></li>
-          <li><a href="./snake-explanation.html">へび解説</a></li>
-          <li><a href="./desk-cleanup.html">机の片づけ</a></li>
-          <li><a href="./desk-cleanup-explanation.html">片づけ解説</a></li>
-          <li><a href="./multi-poker.html">Multi Poker風 大富豪</a></li>
+          <li><a href="./shooter.html">プレイ</a></li>
+          <li><a href="./shooter-explanation.html">解説</a></li>
+          <li><a href="./docs/tutorials/04-input-motion.html">入力と移動</a></li>
+          <li><a href="./docs/tutorials/05-collision.html">衝突</a></li>
         </ul>
-      </div>
+      </article>
 
-      <div class="card">
-        <h2>ブロック崩し講座</h2>
+      <article class="card">
+        <h2>回避パターン</h2>
+        <div class="pill-row"><span class="pill">Shapes</span><span class="pill">polygon</span><span class="pill">TextObject</span></div>
+        <p class="muted">攻撃の流れを読むゲーム。回避のタイミングと図形の使い方を学ぶ。</p>
+        <pre><code>shapes: [Shapes.circle(9, { fill: "#fef08a" })]
+shapes: [Shapes.polygon([[-14, 0], [0, -18], [14, 0]], { fill: "#facc15" })]</code></pre>
         <ul>
-          <li><a href="./block-breaker-course/index.html">講座ホーム</a></li>
-          <li><a href="./block-breaker-course/pages/page-1.html">Lesson 1</a></li>
-          <li><a href="./block-breaker-course/pages/page-5.html">Lesson 5</a></li>
-          <li><a href="./block-breaker-course/pages/page-10.html">Lesson 10</a></li>
-          <li><a href="./block-breaker-course/pages/page-15.html">Lesson 15</a></li>
-          <li><a href="./block-breaker-course/pages/page-20.html">Lesson 20</a></li>
+          <li><a href="./dodge-patterns.html">プレイ</a></li>
+          <li><a href="./dodge-patterns-explanation.html">解説</a></li>
+          <li><a href="./docs/tutorials/02-shapes.html">図形の使い方</a></li>
+          <li><a href="./docs/tutorials/05-collision.html">当たり判定</a></li>
         </ul>
-      </div>
+      </article>
+
+      <article class="card">
+        <h2>スネーク</h2>
+        <div class="pill-row"><span class="pill">GameObject</span><span class="pill">INPUT</span><span class="pill">配列管理</span></div>
+        <p class="muted">胴体の数を配列で持ち、蛇の進行と食べ物判定を作る例。</p>
+        <pre><code>const body = [];
+for (let i = 0; i < 100; i++) {
+  const part = engine.addObject(world, new GameObject({ shapes: [square("#4ade80")] }));
+  body.push(part);
+}</code></pre>
+        <ul>
+          <li><a href="./snake.html">プレイ</a></li>
+          <li><a href="./snake-explanation.html">解説</a></li>
+          <li><a href="./docs/tutorials/03-objects.html">GameObject</a></li>
+          <li><a href="./docs/tutorials/04-input-motion.html">入力</a></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>机の片づけ</h2>
+        <div class="pill-row"><span class="pill">ButtonObject</span><span class="pill">ドラッグ</span><span class="pill">ミッション</span></div>
+        <p class="muted">UIと対象物を動かして、移動先の条件を判定するミッション型ゲーム。</p>
+        <pre><code>const tray = engine.addObject(world, new GameObject({ ... }));
+const item = engine.addObject(world, new ButtonObject(label, { x, y, ... }));</code></pre>
+        <ul>
+          <li><a href="./desk-cleanup.html">プレイ</a></li>
+          <li><a href="./desk-cleanup-explanation.html">解説</a></li>
+          <li><a href="./docs/tutorials/06-ui.html">UI</a></li>
+          <li><a href="./docs/tutorials/09-file-structure-svg.html">SVGと整理</a></li>
+        </ul>
+      </article>
+
     </div>
+
+    <section class="card" style="margin-top:18px">
+      <h2>2. 関連する表示用・作成用ページ</h2>
+      <ul>
+        <li><a href="./docs/studio.html">Studio</a>: JSファイルの管理、SVGアセット編集、Canvasプレビュー、オブジェクト一覧が見える開発ページ。</li>
+        <li><a href="./docs/editor.html">Monaco Editor</a>: コードを書いてすぐ実行できるエディタ用ページ。</li>
+        <li><a href="./docs/docs.html">API docs</a>: engine.js の機能一覧や使い方例を参照するページ。</li>
+        <li><a href="./docs/tests.html">機能テスト</a>: 図形・UI・入力・衝突判定などを試す検証ページ。</li>
+        <li><a href="./block-breaker-course/index.html">ブロック崩し講座</a>: ゲーム制作の練習と学習の入口。</li>
+      </ul>
+    </section>
   </div>
 </body>
 </html>
