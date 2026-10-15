@@ -9,18 +9,33 @@
 <body>
   <header class="topbar">
     <a class="brand" href="../index.html">Engine Studio</a>
+    <a class="brand" href="./projects.html" style="font-size: 0.85rem; opacity: 0.9;">プロジェクト一覧</a>
     <a class="brand" href="./tutorials/index.html" style="font-size: 0.85rem; opacity: 0.9;">チュートリアル</a>
     <input id="project-name" aria-label="プロジェクト名" value="starter-project">
     <div class="toolbar">
       <button id="run" title="ゲームを実行">▶ 実行</button>
       <button id="stop" title="ゲームを停止">■ 停止</button>
-      <button id="save">保存</button>
+      <button id="save" title="変更履歴に保存 (Ctrl+S)">保存</button>
+      <button id="show-history">変更履歴</button>
+      <button id="delete-project" class="danger-button">プロジェクト削除</button>
       <button id="download-project">JSON書き出し</button>
       <label class="button-like">JSON読込<input id="load-project" type="file" accept="application/json,.json"></label>
       <button id="toggle-inspector" aria-expanded="false">インスペクター</button>
       <span id="save-state" role="status">準備中</span>
     </div>
   </header>
+
+  <dialog id="history-dialog" class="history-dialog" aria-labelledby="history-title">
+    <div class="history-heading">
+      <div>
+        <h2 id="history-title">変更履歴</h2>
+        <p class="muted">Ctrl+Sまたは「保存」で作成した履歴です。最大100件を保持します。</p>
+      </div>
+      <button id="close-history" type="button" aria-label="履歴を閉じる">閉じる</button>
+    </div>
+    <p id="history-empty" class="muted" hidden>履歴はまだありません。Ctrl+Sで現在の状態を保存できます。</p>
+    <ol id="history-list" class="history-list"></ol>
+  </dialog>
 
   <main class="studio-layout">
     <aside class="panel project-panel">

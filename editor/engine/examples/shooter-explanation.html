@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>ミニシューター：コードの読み方</h1>
-    <nav><a href="./shooter.html">ゲームで遊ぶ</a></nav>
+    <nav aria-label="ページ移動"><a href="./shooter.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a><a href="../index.html">エンジンホーム</a></nav>
   </header>
   <main class="explanation">
     <p>このゲームの中心は3つです。<code>Ship</code>が移動し、<code>Shot</code>が弾を出し、<code>Enemy</code>が左に流れてくる流れです。設計としては「オブジェクトごとに動き」「worldで衝突をまとめて見る」の形です。</p>
@@ -104,4 +104,3 @@ world.onUpdate = (dt) => {
   </main>
 </body>
 </html>
-

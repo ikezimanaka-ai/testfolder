@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>攻撃パターン：コードの読み方</h1>
-    <nav><a href="./dodge-patterns.html">ゲームで遊ぶ</a></nav>
+    <nav aria-label="ページ移動"><a href="./dodge-patterns.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a><a href="../index.html">エンジンホーム</a></nav>
   </header>
   <main class="explanation">
     <p>このゲームの本題は「同じような弾幕でも、出現の関数を分けて管理すること」です。<code>patterns</code>で並びを決め、<code>spawnPattern()</code>で攻撃を作り、<code>world.onUpdate</code>で時間で切り替えます。</p>
@@ -92,4 +92,3 @@ function radialBurst(count = 18, gapIndex = -1) {
   </main>
 </body>
 </html>
-

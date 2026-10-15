@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>机を片づけよう：ドラッグ処理の解説</h1>
-    <nav><a href="./desk-cleanup.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a></nav>
+    <nav aria-label="ページ移動"><a href="./desk-cleanup.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a><a href="../index.html">エンジンホーム</a></nav>
   </header>
   <main class="explanation">
     <p>このゲームのコアは「ドラッグ中の物を1個だけ管理すること」です。<code>dragging</code>が<code>null</code>のときだけ動かせるようにして、箱の中に入ったら<code>opacity = 0</code>で片づけ完了にしています。</p>
@@ -90,4 +90,3 @@ function finishDrag(item) {
   </main>
 </body>
 </html>
-

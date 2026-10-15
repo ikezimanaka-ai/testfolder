@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プロジェクト | Engine Studio</title>
+  <link rel="stylesheet" href="./studio.css">
+</head>
+<body class="projects-page">
+  <header class="topbar">
+    <a class="brand" href="../index.html">Engine Studio</a>
+    <a class="brand" href="./tutorials/index.html" style="font-size: 0.85rem; opacity: 0.9;">チュートリアル</a>
+  </header>
+  <main class="projects-main">
+    <section class="projects-heading">
+      <div>
+        <h1>プロジェクト</h1>
+        <p class="muted">このブラウザーに保存されているプロジェクトを管理します。</p>
+      </div>
+      <form id="create-project-form" class="create-project-form">
+        <label for="new-project-name">新しいプロジェクト名</label>
+        <div class="toolbar">
+          <input id="new-project-name" name="name" required maxlength="80" placeholder="my-game">
+          <button type="submit">＋ 新規作成</button>
+        </div>
+      </form>
+    </section>
+    <p id="projects-status" role="status" aria-live="polite"></p>
+    <section aria-labelledby="project-list-title">
+      <h2 id="project-list-title">保存済みプロジェクト</h2>
+      <ul id="projects-list" class="projects-list"></ul>
+      <p id="projects-empty" class="muted" hidden>プロジェクトはまだありません。名前を入力して作成してください。</p>
+    </section>
+  </main>
+  <script type="module" src="./projects.js"></script>
+</body>
+</html>

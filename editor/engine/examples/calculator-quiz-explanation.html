@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>計算クイズ：コードの読み方</h1>
-    <nav><a href="./calculator-quiz.html">ゲームで遊ぶ</a></nav>
+    <nav aria-label="ページ移動"><a href="./calculator-quiz.html">ゲームで遊ぶ</a><a href="./index.html">ゲーム一覧</a><a href="../index.html">エンジンホーム</a></nav>
   </header>
   <main class="explanation">
     <p>このゲームは「問題を出す」「入力する」「答える」の3つだけで成立しています。大事なのは、<code>answer</code>・<code>typed</code>・<code>active</code>の3つの状態を管理している点です。</p>
@@ -78,4 +78,3 @@ world.onUpdate = () => { answerView.text = `入力: ${typed || "_"}`; };</code><
   </main>
 </body>
 </html>
-

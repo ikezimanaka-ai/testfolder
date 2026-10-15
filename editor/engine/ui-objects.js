@@ -185,7 +185,7 @@ export class ButtonObject extends GameObject {
       x: 0, y: 0, width: 180, height: 48, label, fontSize: 18, radius: 8,
       color: "#ffffff", background: "#2563eb", hoverBackground: "#3b82f6",
       pressedBackground: "#1d4ed8", fontFamily: "sans-serif", shadow: true,
-      hoverScale: 1.04, hoverLift: -2, hoverDuration: 0.12, onClick: null,
+      hoverScale: 1.04, hoverLift: 0, hoverDuration: 0.12, onClick: null,
       tags: ["button"], shapes: [],
     }, overrides);
     this.hovered = false;
@@ -222,7 +222,7 @@ export class ButtonObject extends GameObject {
     const width = this.width * (1 + (this.hoverScale - 1) * amount);
     const height = this.height * (1 + (this.hoverScale - 1) * amount);
     drawBase(this, context, (ctx) => {
-      ctx.translate(0, this.hoverLift * amount);
+      ctx.translate((this.width - width) / 2, (this.height - height) / 2 + this.hoverLift * amount);
       if (this.shadow) {
         roundedRect(ctx, 0, 4, width, height, this.radius);
         ctx.fillStyle = "rgba(0,0,0,.32)";
