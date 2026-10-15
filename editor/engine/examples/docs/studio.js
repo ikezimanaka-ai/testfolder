@@ -851,7 +851,7 @@ async function runGame() {
       })();
     </script>`;
     const importMap = `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game"></canvas>${bridge}${importMap}<script type="module">import("studio/${entryModule}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
+    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game" tabindex="0"></canvas>${bridge}${importMap}<script type="module">import("studio/${entryModule}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
     preview.srcdoc = documentText;
     $("#run-state").textContent = "実行中";
     $("#run-state").style.color = "#86efac";
