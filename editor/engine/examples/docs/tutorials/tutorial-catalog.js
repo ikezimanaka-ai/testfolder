@@ -11,7 +11,6 @@ const chapters = [
   ["10-game-build", "ゲームを組み立てる", "ルール分解、エディタ活用、ゲーム作成の流れ"],
   ["11-studio-workflow", "Studioを使いこなす", "プロジェクト管理、実行、診断、インスペクター、SVGエディタ"],
   ["12-import-example-games", "サンプルゲームを読み込む", "既存ゲームをJSONプロジェクトにしてStudioへ取り込む"],
-  ["12-import-example-games", "サンプルゲームを読み込む", "既存ゲームをJSONプロジェクトにしてStudioへ取り込む"],
 ];
 
 const container = document.querySelector("#chapter-catalog");

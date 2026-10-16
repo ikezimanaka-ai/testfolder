@@ -56,10 +56,21 @@ engine.start();
         <tr><td><code>display.bringToFront(object)</code> / <code>sendToBack(object)</code></td><td>Display内のObject</td><td>描画順とCanvas上のポインター選択順を変更します。</td></tr>
         <tr><td><code>engine.dt</code></td><td>秒数 / number</td><td>直前フレームからの経過時間。異常な長時間停止時は最大0.25秒に制限されます。</td></tr>
         <tr><td><code>engine.start()</code> / <code>stop()</code></td><td>なし</td><td>開始時にonStartを実行し、以後毎フレーム更新します。二重startは無視します。</td></tr>
+        <tr><td><code>engine.createTimer()</code></td><td>なし / Timer</td><td>Engineのdtを使って秒単位で経過時間を計るタイマーを作成します。</td></tr>
+        <tr><td><code>timer.elapsed</code></td><td>秒数 / number</td><td>作成後に経過した秒数です。pause中またはEngine停止中は進みません。</td></tr>
+        <tr><td><code>timer.reset()</code> / <code>pause()</code> / <code>resume()</code> / <code>delete()</code></td><td>なし</td><td>0秒にリセット、一時停止、再開、タイマー削除を行います。</td></tr>
         <tr><td><code>engine.loadImage(url)</code> / <code>loadSVG(url)</code></td><td>URL / Promise&lt;Image&gt;</td><td>画像またはSVGをURLから読み込みます。</td></tr>
         <tr><td><code>engine.loadFont(family, url)</code></td><td>フォント名、URL / Promise&lt;FontFace&gt;</td><td>URLのWebフォントを登録します。</td></tr>
         <tr><td><code>engine.setDebug(options)</code></td><td>hitboxes / displays / fps</td><td>当たり判定、Display境界、FPSをCanvasへ表示します。</td></tr>
       </table>
+      <pre><code>const timer = engine.createTimer();
+world.onUpdate = () => {
+  message.text = `経過: ${timer.elapsed.toFixed(1)}秒`;
+};
+timer.reset();  // 0秒から計り直す
+timer.pause();  // 一時停止
+timer.resume(); // 再開
+timer.delete(); // 削除</code></pre>
     </section>
 
     <section id="display">

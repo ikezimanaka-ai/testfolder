@@ -86,9 +86,26 @@ async function run() {
   slowEngine.addObject(slowWorld, new GameObject({ onUpdate() { slowFrames++; } }));
   slowEngine.start();
   await new Promise((resolve) => setTimeout(resolve, 320));
+  const timerDestroyedWithEngine = slowEngine.createTimer();
   slowEngine.destroy();
   slowCanvas.remove();
   assert("FPS argument caps update frequency without ignoring low targets", slowFrames >= 4 && slowFrames <= 9);
+  assert("Destroying an Engine deletes its timers", timerDestroyedWithEngine.deleted);
+
+  const timer = engine.createTimer();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert("Timer accumulates elapsed Engine time in seconds", timer.elapsed > 0 && timer.elapsed < 1);
+  timer.pause();
+  const pausedElapsed = timer.elapsed;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert("Paused timer does not accumulate time", timer.elapsed === pausedElapsed);
+  timer.resume();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert("Resumed timer continues accumulating time", timer.elapsed > pausedElapsed);
+  timer.reset();
+  assert("Timer reset returns elapsed time to zero", timer.elapsed === 0);
+  timer.delete();
+  assert("Deleted timer stops tracking time", timer.deleted);
 
   let buttonClicks = 0;
   const button = engine.addObject(world, new ButtonObject("test", { x: 0, y: 0, width: 5, height: 5 }));

@@ -112,6 +112,14 @@ export function createProject(title, project) {
   return id;
 }
 
+export function duplicateProject(id, title) {
+  const source = getProject(id);
+  const duplicateTitle = title.trim() || `${source.title} のコピー`;
+  const duplicateId = createProject(duplicateTitle, { ...source, title: duplicateTitle });
+  saveProjectRevision(duplicateId, { ...source, title: duplicateTitle });
+  return duplicateId;
+}
+
 export function saveProjectDraft(id, project) {
   const record = readProjectRecord(id);
   record.project = clone(project);

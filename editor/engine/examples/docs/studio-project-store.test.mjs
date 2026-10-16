@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createProject,
   deleteProject,
+  duplicateProject,
   getProject,
   getProjectCatalog,
   getProjectHistory,
@@ -67,6 +68,18 @@ test("saves drafts, restores revisions as new history, and caps history at 100",
   const history = getProjectHistory(id);
   assert.equal(history.length, 100);
   assert.equal(history.at(-1).snapshot.files[0].value, "revision 104");
+});
+
+test("duplicates a project into an independent project with an initial revision", () => {
+  const originalId = createProject("original", project("original", "source"));
+  const copyId = duplicateProject(originalId, "original のコピー");
+
+  assert.notEqual(copyId, originalId);
+  assert.deepEqual(getProject(copyId), project("original のコピー", "source"));
+  assert.equal(getProjectHistory(copyId).length, 1);
+  saveProjectDraft(copyId, project("original のコピー", "changed copy"));
+  assert.equal(getProject(originalId).files[0].value, "source");
+  assert.equal(getProject(copyId).files[0].value, "changed copy");
 });
 
 test("deletes project data and catalog entry", () => {

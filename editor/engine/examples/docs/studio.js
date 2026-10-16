@@ -1,7 +1,6 @@
 import { SVGAssetEditor, sanitizeSvgSource } from "./studio-svg-editor.js";
 import {
   createProject,
-  deleteProject,
   getLastProjectId,
   getProject,
   getProjectCatalog,
@@ -11,6 +10,7 @@ import {
   saveProjectRevision,
   setLastProjectId,
 } from "./studio-project-store.js";
+
 const ENGINE_URL = new URL("../../engine.js", location.href).toString();
 const UI_URL = new URL("../../ui-objects.js", location.href).toString();
 const starter = {
@@ -51,9 +51,8 @@ const diagnosticList = $("#diagnostic-list");
 const consoleList = $("#console-list");
 
 let startupNotice = "";
-let projectId = "";
-let project;
-let projectDeleted = false;
+let projectId = new URLSearchParams(location.search).get("project");
+let project = loadProject();
 let editor;
 let svgEditor;
 let activeRunId = 0;
@@ -65,6 +64,26 @@ let sourceDiagnostics = [];
 let pendingDeleteFile = null;
 let clipboard = null;
 let projectSelection = [];
+
+function loadProject() {
+  try {
+    const catalog = getProjectCatalog();
+    if (!projectId) {
+      const lastProjectId = getLastProjectId();
+      projectId = catalog.some((item) => item.id === lastProjectId) ? lastProjectId : catalog[0]?.id ?? null;
+    }
+    if (projectId) {
+      if (!catalog.some((item) => item.id === projectId)) throw new Error("指定されたプロジェクトが見つかりません。");
+      setLastProjectId(projectId);
+      return normalizeProject(getProject(projectId));
+    }
+    return structuredClone(starter);
+  } catch (error) {
+    startupNotice = `プロジェクトを読み込めませんでした: ${error.message}`;
+    projectId = null;
+    return structuredClone(starter);
+  }
+}
 
 function validFileName(name) {
   return typeof name === "string" && name.trim() && !name.includes("/") && !name.includes("\\") && !name.includes("..") && !name.startsWith(".");
@@ -202,13 +221,17 @@ function syncActiveSource() {
   file.value = editor.getValue();
 }
 
-function saveProjectDraftToStorage() {
-  if (projectDeleted) return;
+function saveProject() {
   syncActiveSource();
   project.title = $("#project-name").value.trim() || "game-project";
   try {
-    saveProjectDraft(projectId, project);
-    status.textContent = `下書き保存済み ${new Date().toLocaleTimeString()}`;
+    if (!projectId) {
+      projectId = createProject(project.title, project);
+      setLastProjectId(projectId);
+    }
+    const revision = saveProjectRevision(projectId, project);
+    if (!revision) saveProjectDraft(projectId, project);
+    status.textContent = revision ? `履歴に保存 ${new Date().toLocaleTimeString()}` : `保存済み ${new Date().toLocaleTimeString()}`;
     status.style.color = "#86efac";
   } catch (error) {
     status.textContent = `保存に失敗: ${error.message}`;
@@ -217,32 +240,65 @@ function saveProjectDraftToStorage() {
   }
 }
 
-function saveRevision() {
-  clearTimeout(autosaveTimer);
-  syncActiveSource();
-  project.title = $("#project-name").value.trim() || "game-project";
-  try {
-    const revision = saveProjectRevision(projectId, project);
-    if (!revision) {
-      status.textContent = "変更はありません";
-      status.style.color = "#86efac";
-      return;
-    }
-    status.textContent = `履歴に保存済み ${new Date(revision.createdAt).toLocaleTimeString()}`;
-    status.style.color = "#86efac";
-    if ($("#history-dialog").open) renderHistory();
-  } catch (error) {
-    status.textContent = `保存に失敗: ${error.message}`;
-    status.style.color = "#fca5a5";
-    addConsole("error", ["プロジェクトを保存できません", error.message]);
+function showProjectHistory() {
+  const list = $("#history-list");
+  const history = getProjectHistory(projectId).reverse();
+  list.replaceChildren();
+  $("#history-empty").hidden = history.length > 0;
+  for (const revision of history) {
+    const item = document.createElement("li");
+    item.className = "history-item";
+    const details = document.createElement("span");
+    details.textContent = `${revision.summary} (${new Date(revision.createdAt).toLocaleString()})`;
+    const restore = document.createElement("button");
+    restore.type = "button";
+    restore.textContent = "復元";
+    restore.addEventListener("click", () => {
+      if (!window.confirm(`「${revision.summary}」の内容を復元しますか？`)) return;
+      try {
+        clearTimeout(autosaveTimer);
+        project = normalizeProject(restoreProjectRevision(projectId, revision.id));
+        $("#project-name").value = project.title;
+        renderProjectTree();
+        if (editor) editor.getModel().setValue(activeFile().value);
+        if (svgEditor) svgEditor.clear();
+        setWorkspace("code");
+        updateSymbols();
+        $("#history-dialog").close();
+        status.textContent = "変更履歴を復元しました。";
+        status.style.color = "#86efac";
+      } catch (error) {
+        status.textContent = `履歴の復元に失敗しました: ${error.message}`;
+        status.style.color = "#fca5a5";
+      }
+    });
+    item.append(details, restore);
+    list.append(item);
   }
+  $("#history-dialog").showModal();
 }
 
 function scheduleSave() {
   status.textContent = "未保存";
   status.style.color = "#fcd34d";
   clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(saveProjectDraftToStorage, 500);
+  autosaveTimer = setTimeout(() => {
+    syncActiveSource();
+    project.title = $("#project-name").value.trim() || "game-project";
+    try {
+      if (!projectId) {
+        projectId = createProject(project.title, project);
+        setLastProjectId(projectId);
+      }
+      saveProjectDraft(projectId, project);
+      status.textContent = "自動保存済み";
+      status.style.color = "#86efac";
+    } catch (error) {
+      status.textContent = `自動保存に失敗: ${error.message}`;
+      status.style.color = "#fca5a5";
+      addConsole("error", ["プロジェクトを保存できません", error.message]);
+    }
+  }, 500);
 }
 
 function ensureUniqueName(baseName, parentPath = "") {
@@ -733,7 +789,7 @@ function loadProjectFile(file) {
       renderProjectTree();
       editor.getModel().setValue(activeFile().value);
       updateSymbols();
-      saveProjectDraftToStorage();
+      saveProject();
     } catch (error) {
       addConsole("error", ["JSONプロジェクトを読み込めません", error.message]);
     }
@@ -851,7 +907,7 @@ async function runGame() {
       })();
     </script>`;
     const importMap = `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game" tabindex="0"></canvas>${bridge}${importMap}<script type="module">import("studio/${entryModule}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
+    const documentText = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020617}canvas{display:block;width:100%;height:100%}</style></head><body><canvas id="game"></canvas>${bridge}${importMap}<script type="module">import("studio/${entryModule}").catch(error=>{parent.postMessage({source:"engine-studio",runId:${JSON.stringify(runId)},type:"runtime-error",payload:{message:String(error.stack||error),line:0,column:0}},"*")});</script></body></html>`;
     preview.srcdoc = documentText;
     $("#run-state").textContent = "実行中";
     $("#run-state").style.color = "#86efac";
@@ -1221,102 +1277,7 @@ function setLayout(layout) {
   $("#preview-tab").textContent = "ゲーム画面";
 }
 
-function initializeProject() {
-  const catalog = getProjectCatalog();
-  const requestedId = new URLSearchParams(location.search).get("project");
-  if (requestedId) {
-    if (!catalog.some((item) => item.id === requestedId)) {
-      location.replace("./projects.html");
-      return false;
-    }
-    projectId = requestedId;
-  } else {
-    const lastProjectId = getLastProjectId();
-    projectId = catalog.find((item) => item.id === lastProjectId)?.id || catalog[0]?.id || "";
-    if (!projectId) projectId = createProject(starter.title, structuredClone(starter));
-    const url = new URL(location.href);
-    url.searchParams.set("project", projectId);
-    history.replaceState(null, "", url);
-  }
-  setLastProjectId(projectId);
-  project = normalizeProject(getProject(projectId));
-  return true;
-}
-
-function renderHistory() {
-  const list = $("#history-list");
-  list.replaceChildren();
-  const revisions = getProjectHistory(projectId).reverse();
-  $("#history-empty").hidden = revisions.length > 0;
-  for (const revision of revisions) {
-    const item = document.createElement("li");
-    item.className = "history-item";
-    const details = document.createElement("div");
-    const summary = document.createElement("strong");
-    summary.textContent = revision.summary;
-    const time = document.createElement("time");
-    time.dateTime = revision.createdAt;
-    time.textContent = new Date(revision.createdAt).toLocaleString();
-    details.append(summary, time);
-    const restore = document.createElement("button");
-    restore.type = "button";
-    restore.textContent = "この時点に戻す";
-    restore.addEventListener("click", () => {
-      if (!window.confirm("この履歴の状態に戻しますか？現在の状態も新しい履歴として保存されます。")) return;
-      try {
-        project = normalizeProject(restoreProjectRevision(projectId, revision.id));
-        $("#project-name").value = project.title;
-        const file = activeFile();
-        if (editor && file && file.kind !== "folder") {
-          const model = editor.getModel();
-          if (file.kind === "binary") {
-            model.setValue(`/* ${file.name} はバイナリファイルです。テキストとして編集できません。 */\n`);
-            monaco.editor.setModelLanguage(model, "plaintext");
-          } else {
-            model.setValue(file.value);
-            monaco.editor.setModelLanguage(model, "javascript");
-          }
-        }
-        renderProjectTree();
-        if (editor) {
-          updateSymbols();
-          updateDiagnostics();
-        }
-        status.textContent = "履歴から復元し、新しい履歴として保存しました";
-        status.style.color = "#86efac";
-        renderHistory();
-      } catch (error) {
-        status.textContent = `復元に失敗: ${error.message}`;
-        status.style.color = "#fca5a5";
-      }
-    });
-    item.append(details, restore);
-    list.append(item);
-  }
-}
-
-function deleteCurrentProject() {
-  if (!window.confirm(`「${project.title}」を削除しますか？変更履歴も削除されます。`)) return;
-  try {
-    deleteProject(projectId);
-    projectDeleted = true;
-    clearTimeout(autosaveTimer);
-    location.href = "./projects.html";
-  } catch (error) {
-    status.textContent = `削除に失敗しました: ${error.message}`;
-    status.style.color = "#fca5a5";
-    addConsole("error", ["プロジェクトを削除できません", error.message]);
-  }
-}
-
 function init() {
-  try {
-    if (!initializeProject()) return;
-  } catch (error) {
-    status.textContent = `プロジェクトを読み込めません: ${error.message}`;
-    status.style.color = "#fca5a5";
-    return;
-  }
   $("#project-name").value = project.title;
   renderProjectTree();
   svgEditor = new SVGAssetEditor($("#svg-editor-root"), {
@@ -1359,17 +1320,15 @@ function init() {
   });
   $("#run").addEventListener("click", runGame);
   $("#stop").addEventListener("click", stopGame);
-  $("#save").addEventListener("click", saveRevision);
+  $("#save").addEventListener("click", saveProject);
   $("#show-history").addEventListener("click", () => {
     try {
-      renderHistory();
-      $("#history-dialog").showModal();
+      showProjectHistory();
     } catch (error) {
-      status.textContent = `履歴を読み込めません: ${error.message}`;
+      status.textContent = `変更履歴を読み込めません: ${error.message}`;
       status.style.color = "#fca5a5";
     }
   });
-  $("#delete-project").addEventListener("click", deleteCurrentProject);
   $("#close-history").addEventListener("click", () => $("#history-dialog").close());
   $("#download-project").addEventListener("click", serializeProject);
   $("#load-project").addEventListener("change", (event) => {
@@ -1386,12 +1345,6 @@ function init() {
     event.target.value = "";
   });
   $("#project-name").addEventListener("input", scheduleSave);
-  document.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      saveRevision();
-    }
-  });
   $("#symbol-filter").addEventListener("input", updateSymbols);
   $("#console-filter").addEventListener("input", renderConsole);
   $("#clear-console").addEventListener("click", () => { consoleEntries = []; renderConsole(); });
@@ -1409,7 +1362,7 @@ function init() {
     $("#toggle-inspector").setAttribute("aria-expanded", "false");
   });
   window.addEventListener("message", handleRuntimeMessage);
-  window.addEventListener("beforeunload", saveProjectDraftToStorage);
+  window.addEventListener("beforeunload", syncActiveSource);
   document.addEventListener("click", (event) => {
     const menu = $("#project-context-menu");
     if (menu && !menu.hidden && !event.target.closest("#project-context-menu")) {
@@ -1442,7 +1395,7 @@ function init() {
     monaco.editor.onDidChangeMarkers(() => updateDiagnostics());
     updateSymbols();
     updateDiagnostics();
-    saveProjectDraftToStorage();
+    saveProject();
     if (startupNotice) {
       status.textContent = startupNotice;
       status.style.color = "#fcd34d";

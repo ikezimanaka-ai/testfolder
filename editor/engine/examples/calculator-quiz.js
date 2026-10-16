@@ -8,11 +8,13 @@ const question = engine.addObject(world, new TextObject("問題を出すを押�
 const answerView = engine.addObject(world, new TextObject("入力: ", { x: 400, y: 180, anchor: "middle", fontSize: 30, color: "#bae6fd" }));
 const result = engine.addObject(world, new TextObject("Canvasをクリックしてからキーボード入力", { x: 400, y: 225, anchor: "middle", fontSize: 18, color: "#bfdbfe" }));
 const scoreView = engine.addObject(world, new TextObject("スコア: 0 / 0", { x: 400, y: 410, anchor: "middle", fontSize: 18, color: "#cbd5e1" }));
+const nextQuestionTimer = engine.createTimer().pause();
 let answer = 0;
 let typed = "";
 let score = 0;
 let count = 0;
 let active = false;
+let waitingForNextQuestion = false;
 
 const newButton = engine.addObject(world, new ButtonObject("問題を出す", { x: 190, y: 275, width: 180, height: 55 }));
 const submitButton = engine.addObject(world, new ButtonObject("答える", { x: 430, y: 275, width: 180, height: 55, background: "#0f766e", hoverBackground: "#14b8a6" }));
@@ -40,6 +42,8 @@ function submitAnswer() {
   active = false;
   result.text = correct ? "せいかい！" : `ざんねん。正解は ${answer}`;
   scoreView.text = `スコア: ${score} / ${count}`;
+  waitingForNextQuestion = true;
+  nextQuestionTimer.reset().resume();
 }
 
 canvas.addEventListener("keydown", (event) => {
@@ -50,6 +54,13 @@ canvas.addEventListener("keydown", (event) => {
 });
 newButton.onClick = newQuestion;
 submitButton.onClick = submitAnswer;
-world.onUpdate = () => { answerView.text = `入力: ${typed || "_"}`; };
+world.onUpdate = () => {
+  answerView.text = `入力: ${typed || "_"}`;
+  if (waitingForNextQuestion && nextQuestionTimer.elapsed >= 1) {
+    waitingForNextQuestion = false;
+    nextQuestionTimer.pause();
+    newQuestion();
+  }
+};
 engine.start();
 canvas.focus();

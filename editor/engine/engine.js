@@ -545,10 +545,48 @@ export class Display {
   }
 }
 
+class EngineTimer {
+  constructor(engine) {
+    this._engine = engine;
+    this._elapsed = 0;
+    this.paused = false;
+    this.deleted = false;
+  }
+  get elapsed() { return this._elapsed; }
+  _update(dt) {
+    if (!this.paused && !this.deleted) this._elapsed += dt;
+  }
+  _assertActive() {
+    if (this.deleted) throw new Error("Cannot use a deleted timer.");
+  }
+  reset() {
+    this._assertActive();
+    this._elapsed = 0;
+    return this;
+  }
+  pause() {
+    this._assertActive();
+    this.paused = true;
+    return this;
+  }
+  resume() {
+    this._assertActive();
+    this.paused = false;
+    return this;
+  }
+  delete() {
+    if (this.deleted) return;
+    this.deleted = true;
+    this._engine._timers.delete(this);
+    this._engine = null;
+  }
+}
+
 export class Engine {
   constructor(canvas, fps = 60, logicalWidth = 800, logicalHeight = 450) {
     if (!(canvas instanceof HTMLCanvasElement)) throw new TypeError("Engine requires a canvas element.");
     if (logicalWidth <= 0 || logicalHeight <= 0) throw new RangeError("Engine logical size must be positive.");
+    if (canvas.tabIndex < 0) canvas.tabIndex = 0;
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     if (!this.ctx) throw new Error("Engine could not create a 2D canvas context.");
@@ -557,6 +595,7 @@ export class Engine {
     this.logicalWidth = logicalWidth;
     this.logicalHeight = logicalHeight;
     this.dt = 0;
+    this._timers = new Set();
     this.displays = [];
     if (typeof globalThis.GameStudio?._registerEngine === "function") globalThis.GameStudio._registerEngine(this);
     this.running = false;
@@ -750,6 +789,11 @@ export class Engine {
     return this;
   }
   getObjects(criteria) { return this.displays.flatMap((display) => display.getObjects(criteria)); }
+  createTimer() {
+    const timer = new EngineTimer(this);
+    this._timers.add(timer);
+    return timer;
+  }
   start() {
     if (this.running) return;
     this.running = true;
@@ -763,6 +807,7 @@ export class Engine {
   }
   destroy() {
     this.stop();
+    for (const timer of this._timers) timer.delete();
     this._resizeObserver.disconnect();
     for (const [target, type, listener] of this._pointerEventListeners) {
       target.removeEventListener(type, listener);
@@ -786,6 +831,7 @@ export class Engine {
     }
     this.dt = Math.min(elapsed / 1000, 0.25);
     this._lastTime = time;
+    for (const timer of this._timers) timer._update(this.dt);
     for (const display of this.displays) display.update(this.dt);
     this.render();
     INPUT.endFrame();

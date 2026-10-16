@@ -1,6 +1,7 @@
 import {
   createProject,
   deleteProject,
+  duplicateProject,
   getProjectCatalog,
 } from "./studio-project-store.js";
 
@@ -34,6 +35,22 @@ function renderProjects() {
     open.className = "button-like";
     open.href = `./studio.html?project=${encodeURIComponent(project.id)}`;
     open.textContent = "開く";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "コピー";
+    copy.addEventListener("click", () => {
+      try {
+        const titles = new Set(getProjectCatalog().map((item) => item.title));
+        const baseTitle = `${project.title} のコピー`;
+        let title = baseTitle;
+        for (let index = 2; titles.has(title); index++) title = `${baseTitle} (${index})`;
+        duplicateProject(project.id, title);
+        status.textContent = `「${project.title}」を「${title}」としてコピーしました。`;
+        renderProjects();
+      } catch (error) {
+        status.textContent = `コピーに失敗しました: ${error.message}`;
+      }
+    });
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "danger-button";
@@ -48,7 +65,7 @@ function renderProjects() {
         status.textContent = `削除に失敗しました: ${error.message}`;
       }
     });
-    actions.append(open, remove);
+    actions.append(open, copy, remove);
     item.append(details, actions);
     projectList.append(item);
   }

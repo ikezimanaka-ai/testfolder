@@ -35,6 +35,8 @@ let typed = "";
 let score = 0;
 let count = 0;
 let active = false;
+let waitingForNextQuestion = false;
+const nextQuestionTimer = engine.createTimer().pause();
 
 function newQuestion() {
   const a = 2 + Math.floor(Math.random() * 9);
@@ -47,7 +49,7 @@ function newQuestion() {
   canvas.focus();
 }</code></pre><p><code>newQuestion</code>ではつぎの問題を作ります。<code>Math.random()</code>で0〜1の乱数を作り、<code>Math.floor</code>で整数にして2〜10の範囲にしています。</p></div>
 
-    <div class="chunk"><pre><code>function submitAnswer() {
+    <div class="chunk"><pre><code>        function submitAnswer() {
   if (!active) return;
   if (typed.trim() === "" || Number.isNaN(Number(typed))) {
     result.text = "数字を入力してください";
@@ -60,6 +62,8 @@ function newQuestion() {
   active = false;
   result.text = correct ? "せいかい！" : `ざんねん。正解は ${answer}`;
   scoreView.text = `スコア: ${score} / ${count}`;
+  waitingForNextQuestion = true;
+  nextQuestionTimer.reset().resume();
 }</code></pre><p>入力した文字を<code>Number()</code>で数値に変換し、正解と照合します。<code>active</code>が<code>false</code>なら、問題が出ていないときに勝手に採点しないようにしています。</p></div>
 
     <h2>3. キーボード入力で文字を増やす</h2>
@@ -72,7 +76,14 @@ function newQuestion() {
 
 newButton.onClick = newQuestion;
 submitButton.onClick = submitAnswer;
-world.onUpdate = () => { answerView.text = `入力: ${typed || "_"}`; };</code></pre><p>入力文字列は<code>typed</code>に保存され、毎フレーム<code>answerView.text</code>として画面に出します。大事なのは、ボタンのクリックとキー入力を別のイベントとして扱っていることです。</p></div>
+world.onUpdate = () => {
+  answerView.text = `入力: ${typed || "_"}`;
+  if (waitingForNextQuestion && nextQuestionTimer.elapsed >= 1) {
+    waitingForNextQuestion = false;
+    nextQuestionTimer.pause();
+    newQuestion();
+  }
+};</code></pre><p>入力文字列は<code>typed</code>に保存され、毎フレーム<code>answerView.text</code>として画面に出します。タイマーを監視して次の問題へ進めています。</p></div>
 
     <p>このゲームの本質は「答えに使う状態を増やしすぎないこと」です。入力値・正解値・現在の問題の有無だけを持てば、十分に動きます。</p>
   </main>
