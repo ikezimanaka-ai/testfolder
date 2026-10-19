@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Monac Editor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%235b7cfa' d='M3 7h10l3 3h13v16H3z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="titlebar">
+    <a class="brand" href="../index.html" aria-label="Engine Guideへ戻る">M</a>
+    <div class="titlebar-center">
+      <span class="app-title">Monac Editor</span>
+      <span id="workspace-name" class="workspace-name">フォルダが開かれていません</span>
+    </div>
+    <div class="titlebar-actions">
+      <button id="open-folder" class="button button-primary" type="button">フォルダーを開く</button>
+      <button id="save-file" class="button" type="button" disabled>保存</button>
+      <button id="save-all" class="button" type="button" disabled>すべて保存</button>
+      <button id="open-settings" class="button" type="button" aria-label="設定" title="設定">⚙</button>
+    </div>
+  </header>
+
+  <main class="workbench">
+    <aside class="explorer">
+      <div class="section-heading">
+        <h1>エクスプローラー</h1>
+        <div class="explorer-actions">
+          <button id="paste-entry" class="icon-button" type="button" title="貼り付け" aria-label="貼り付け" disabled>貼付</button>
+          <button id="new-file" class="icon-button" type="button" title="新しいファイル" aria-label="新しいファイル" disabled>＋F</button>
+          <button id="new-folder" class="icon-button" type="button" title="新しいフォルダー" aria-label="新しいフォルダー" disabled>＋D</button>
+          <button id="refresh-tree" class="icon-button" type="button" title="更新" aria-label="ファイルツリーを更新" disabled>⟳</button>
+        </div>
+      </div>
+      <button id="root-label" class="root-label" type="button" hidden></button>
+      <div class="tree-scroll">
+        <ul id="file-tree" class="file-tree" aria-label="ファイルツリー" aria-multiselectable="true" role="tree"></ul>
+        <div id="tree-placeholder" class="tree-placeholder">フォルダーを開いてファイルを表示</div>
+      </div>
+    </aside>
+
+    <section class="editor-area" aria-label="コードエディター">
+      <div id="tabs" class="tabs" role="tablist" aria-label="開いているファイル"></div>
+      <div class="editor-content">
+        <div id="editor" aria-label="コードエディター"></div>
+        <div id="welcome" class="welcome">
+          <div class="welcome-mark">M</div>
+          <h2>Monac Editor</h2>
+          <p>ローカルフォルダーを開いて編集を始めましょう。</p>
+          <button class="button button-primary" type="button" data-open-folder>フォルダーを開く</button>
+          <p class="welcome-hint">編集内容は保存ボタンまたは Ctrl+S で保存できます。</p>
+        </div>
+        <section id="file-details" class="file-details" aria-label="ファイル情報" hidden>
+          <h2 id="file-details-title"></h2>
+          <div id="file-details-preview" class="file-details-preview"></div>
+          <dl id="file-details-list" class="file-details-list"></dl>
+        </section>
+        <div id="editor-error" class="editor-error" role="alert" hidden></div>
+      </div>
+      <footer class="statusbar">
+        <span id="status-path">準備完了</span>
+        <span class="status-spacer"></span>
+        <span id="status-language">Plain Text</span>
+        <span>UTF-8</span>
+        <span>Spaces: 2</span>
+      </footer>
+    </section>
+  </main>
+
+  <dialog id="editor-settings" class="editor-dialog">
+    <form id="settings-form" method="dialog">
+      <h2>設定</h2>
+      <label for="directory-index-files">フォルダーリンクの既定ファイル</label>
+      <p>リンク先がフォルダーの場合、上から順に探します。1行に1つのファイル名を入力してください。</p>
+      <textarea id="directory-index-files" rows="6" spellcheck="false"></textarea>
+      <section class="icon-settings" aria-labelledby="icon-settings-title">
+        <h3 id="icon-settings-title">拡張子アイコン</h3>
+        <p>PNGを選ぶとその拡張子のアイコンを上書きします。未設定の拡張子はVS Code標準アイコンを使います。</p>
+        <label for="icon-extension">拡張子（例: js、html）</label>
+        <input id="icon-extension" type="text" autocomplete="off" spellcheck="false" placeholder="js">
+        <label for="icon-image">アイコン画像（PNG）</label>
+        <input id="icon-image" type="file" accept="image/png,.png">
+        <div id="icon-preview" class="icon-preview" aria-live="polite"></div>
+        <div class="icon-actions">
+          <button id="save-icon" class="button" type="button">アイコンを保存</button>
+          <button id="reset-icon" class="button" type="button">標準に戻す</button>
+        </div>
+      </section>
+      <div class="dialog-actions">
+        <button id="reset-settings" class="button" type="button">既定に戻す</button>
+        <span></span>
+        <button id="cancel-settings" class="button" type="button">キャンセル</button>
+        <button class="button button-primary" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="link-not-found-dialog" class="editor-dialog">
+    <form method="dialog">
+      <h2>ファイルが見つかりません</h2>
+      <p id="link-not-found-message"></p>
+      <div class="dialog-actions">
+        <span></span>
+        <button class="button button-primary" type="submit">閉じる</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="context-menu" class="context-menu" role="menu" aria-label="ファイル操作" hidden></div>
+  <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -18,6 +18,7 @@
 - [examples/docs/docs.html](./examples/docs/docs.html): 使い方を確認する参照ページ。
 - [examples/docs/tests.html](./examples/docs/tests.html): 図形やUIのテストページ。
 - [examples/docs/studio.html](./examples/docs/studio.html): 作成時の実務用ページ。
+- [monac/index.html](./monac/index.html): ローカルフォルダを複数タブで編集するVS Code風エディター。ツリーは右クリックメニュー/ドラッグ&ドロップで操作でき、タブもドラッグで並べ替えられます。Seti標準アイコンと拡張子ごとのPNG上書き、画像・音声・動画・バイナリの情報表示に対応します。設定画面からPNGを選ぶと `.monacSetting/js.png` のように保存し、標準へ戻すと上書き画像を削除します。画像は容量・ピクセル寸法・縦横比、音声は容量・長さ、動画は容量・ピクセル寸法・縦横比・長さ、その他のバイナリは容量を表示します。ワークスペース設定はExplorerに表示されません。
 
 > ここでは「内部実装の説明」よりも、「どのファイルを使うか」と「何をインポートするか」を見ます。
 
@@ -89,6 +90,7 @@
 ## 開発用/学習用の入り口
 
 - [examples/docs/studio.html](./examples/docs/studio.html): 実際にJSファイルを管理しながら試すページ
+- [monac/index.html](./monac/index.html): File System Access APIでローカルファイルを操作するエディター。フォルダへのドロップは中身ごと移動します。メディアのメタデータ表示とワークスペースごとのアイコン設定にも対応します。
 - [examples/docs/editor.html](./examples/docs/editor.html): そのままコード編集して実行するページ
 - [examples/docs/tutorials/index.html](./examples/docs/tutorials/index.html): 機能ごとの短い実例
 - [examples/block-breaker-course/index.html](./examples/block-breaker-course/index.html): 作品を作る練習用の講座

@@ -1,1 +1,1 @@
-export * from "../../ui-objects.js";
+export * from "../ui-objects.js";

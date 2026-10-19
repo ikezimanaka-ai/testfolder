@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Web Page</title>
+        <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%235b7cfa' d='M3 7h10l3 3h13v16H3z'/%3E%3C/svg%3E">
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        <header>
+            <h1>Welcome to My Web Page</h1>
+        </header>
+        <main>
+            <section>
+                <h2>ファイルシステム API デモ</h2>
+                <p>選択したフォルダ内に src/components を作成・編集し、最後に削除します。既存の同名フォルダがある場合、その中身も削除される可能性があります。</p>
+                <button id="run-demo" type="button">フォルダを選択してデモを実行</button>
+                <p id="status" role="status" aria-live="polite"></p>
+            </section>
+        </main>
+        <footer>
+            <p>&copy; 2024 My Web Page. All rights reserved.</p>
+        </footer>
+        <script type="module" src="script.js"></script>
+    </body>
+</html>
