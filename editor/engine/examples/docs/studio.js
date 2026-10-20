@@ -1408,5 +1408,4 @@ function init() {
   });
 }
 
-//init();
-window.location = "../../studio/projects.html";
+init();
