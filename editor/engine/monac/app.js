@@ -1,4 +1,8 @@
 import { createPointer } from "../filesystem/filesystem-api.js";
+import { buildRunnerDocument } from "./game-runner.js";
+import {
+  writeStudioProjectJson,
+} from "./studio-project-import.js";
 import {
   loadLastWorkspaceHandle,
   saveLastWorkspaceHandle,
@@ -18,10 +22,23 @@ import {
   treeEntryKey,
   updateTreeSelection,
 } from "./file-tree-selection.js";
+import {
+  buildSvgTransform,
+  isSvgPath,
+  parseSvgPath,
+  parseSvgPoints,
+  serializeSvgPath,
+  serializeSvgPoints,
+  svgEditableAttributes,
+  svgModeForPath,
+  svgPositionAttributes,
+  translateSvgCoordinate,
+} from "./svg-editor.js";
 
 const $ = (selector) => document.querySelector(selector);
 const ui = {
   editor: $("#editor"),
+  executionWorkbench: $("#execution-workbench"),
   error: $("#editor-error"),
   fileDetails: $("#file-details"),
   fileDetailsList: $("#file-details-list"),
@@ -53,6 +70,12 @@ const ui = {
   treePlaceholder: $("#tree-placeholder"),
   welcome: $("#welcome"),
   workspaceName: $("#workspace-name"),
+  svgModeBar: $("#svg-mode-bar"),
+  svgSelectionStatus: $("#svg-selection-status"),
+  svgStage: $("#svg-stage"),
+  svgWorkbench: $("#svg-workbench"),
+  svgInspectorHint: $("#svg-inspector-hint"),
+  svgProperties: $("#svg-properties"),
   saveIcon: $("#save-icon"),
   resetIcon: $("#reset-icon"),
 };
@@ -69,6 +92,9 @@ let selectedEntries = new Map();
 let selectionAnchorPath = "";
 let activePath = "";
 let tabs = [];
+let executionTabs = [];
+let activeExecutionTabId = "";
+let nextExecutionTabId = 1;
 let expandedFolders = new Set();
 let clipboard = null;
 let contextTarget = null;
@@ -78,6 +104,14 @@ const DEFAULT_DIRECTORY_INDEX_FILES = ["index.html", "index.js", "index.htm", "i
 const SETTINGS_DIRECTORY = ".monacSetting";
 const SETTINGS_FILE = `${SETTINGS_DIRECTORY}/settings.json`;
 const DEFAULT_ICON_ID = setiIconTheme.file;
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const SVG_SELECTABLE_ELEMENTS = new Set([
+  "rect", "circle", "ellipse", "line", "polygon", "polyline", "path", "text", "tspan", "image",
+]);
+const UNSAFE_SVG_ELEMENTS = new Set([
+  "animate", "animatemotion", "animatetransform", "audio", "embed", "foreignobject",
+  "iframe", "object", "script", "set", "video",
+]);
 let directoryIndexFiles = [...DEFAULT_DIRECTORY_INDEX_FILES];
 let customIconUrls = new Map();
 let filePreviewUrl = "";
@@ -297,8 +331,13 @@ function showFileDetails(path, file, kind) {
   clearFileDetails();
   fileDetailsPath = path;
   activePath = "";
+  activeExecutionTabId = "";
   if (editor) editor.setModel(null);
   ui.editor.hidden = true;
+  ui.executionWorkbench.hidden = true;
+  ui.editor.classList.remove("svg-text-mode");
+  ui.svgModeBar.hidden = true;
+  ui.svgWorkbench.hidden = true;
   ui.welcome.hidden = true;
   ui.error.hidden = true;
   ui.fileDetails.hidden = false;
@@ -429,6 +468,698 @@ function modelUri(path) {
   return window.monaco.Uri.parse(`inmemory://workspace/${encoded}`);
 }
 
+function cloneSvgPreviewNode(source, sourceElements, previewElements) {
+  if (source.nodeType !== Node.ELEMENT_NODE) return source.cloneNode(false);
+
+  const namespace = source.namespaceURI || SVG_NAMESPACE;
+  const preview = document.createElementNS(namespace, source.nodeName);
+  for (const attribute of source.attributes) {
+    if ([
+      "data-handle-radius",
+      "data-monac-handle",
+      "data-monac-index",
+      "data-monac-selection-overlay",
+      "data-monac-svg-id",
+    ].includes(attribute.name.toLowerCase())) continue;
+    preview.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
+  }
+  const elementName = source.localName.toLowerCase();
+  if (
+    (source.namespaceURI === SVG_NAMESPACE || !source.namespaceURI) &&
+    SVG_SELECTABLE_ELEMENTS.has(elementName)
+  ) {
+    const id = String(sourceElements.size);
+    sourceElements.set(id, source);
+    preview.dataset.monacSvgId = id;
+    previewElements.set(id, preview);
+  }
+  for (const child of source.childNodes) {
+    preview.append(cloneSvgPreviewNode(child, sourceElements, previewElements));
+  }
+  return preview;
+}
+
+function hasExternalSvgUrl(value) {
+  return [...value.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)]
+    .some((match) => !match[2].trim().startsWith("#"));
+}
+
+function sanitizeSvgPreview(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  const elements = [root];
+  while (walker.nextNode()) elements.push(walker.currentNode);
+
+  for (const element of elements) {
+    if (
+      element !== root &&
+      (
+        element.namespaceURI !== SVG_NAMESPACE ||
+        UNSAFE_SVG_ELEMENTS.has(element.localName.toLowerCase()) ||
+        (
+          element.localName.toLowerCase() === "style" &&
+          (/@import\b/i.test(element.textContent) || hasExternalSvgUrl(element.textContent))
+        )
+      )
+    ) {
+      element.remove();
+      continue;
+    }
+    for (const attribute of [...element.attributes]) {
+      const name = attribute.localName.toLowerCase();
+      const value = attribute.value.trim();
+      if (
+        name.startsWith("on") ||
+        name === "src" ||
+        name === "base" ||
+        (name === "href" && value && !value.startsWith("#")) ||
+        (name === "style" && hasExternalSvgUrl(value)) ||
+        hasExternalSvgUrl(value)
+      ) {
+        element.removeAttributeNode(attribute);
+      }
+    }
+  }
+}
+
+function svgPointInElement(element, event, matrix = element.getScreenCTM?.()) {
+  if (!matrix) return null;
+  const point = element.ownerSVGElement.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  return point.matrixTransform(matrix.inverse());
+}
+
+function svgPointInParent(element, event, matrix = element.parentElement?.getScreenCTM?.()) {
+  if (!matrix) return null;
+  const point = element.ownerSVGElement.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  return point.matrixTransform(matrix.inverse());
+}
+
+function applySvgOffset(source, x, y, originalValues) {
+  const transform = source.getAttribute("transform");
+  const attributes = svgPositionAttributes(source.localName);
+  if (!attributes.length || (transform && transform !== "none")) return false;
+
+  const updates = attributes.map((attribute) => {
+    const offset = attribute.startsWith("y") || attribute === "cy" ? y : x;
+    return [
+      attribute,
+      translateSvgCoordinate(
+        originalValues?.get(attribute) ?? source.getAttribute(attribute),
+        offset,
+      ),
+    ];
+  });
+  if (updates.some(([, value]) => value === null)) return false;
+  for (const [attribute, value] of updates) source.setAttribute(attribute, value);
+  return true;
+}
+
+function selectSvgElement(tab, elementId) {
+  tab.svgSelectionId = elementId;
+  for (const element of ui.svgStage.querySelectorAll("[data-monac-svg-id]")) {
+    element.classList.toggle("monac-svg-selected", element.dataset.monacSvgId === elementId);
+  }
+
+  const source = tab.svgElements.get(elementId);
+  const preview = tab.svgPreviewElements.get(elementId);
+  ui.svgProperties.replaceChildren();
+  if (!source) {
+    ui.svgSelectionStatus.textContent = "";
+    ui.svgInspectorHint.textContent = "図形を選択すると、ドラッグで移動できます。";
+    ui.svgStage.querySelector("[data-monac-selection-overlay]")?.remove();
+    return;
+  }
+
+  const elementName = source.localName.toLowerCase();
+  ui.svgSelectionStatus.textContent = `<${elementName}> を選択中`;
+  if (elementName === "path") {
+    ui.svgInspectorHint.textContent = "枠の角でサイズ変更、上の丸で回転、橙の点でパス、青の点でベジェ曲線を編集できます。";
+  } else if (["polygon", "polyline"].includes(elementName)) {
+    ui.svgInspectorHint.textContent = "枠の角でサイズ変更、上の丸で回転、橙の点で頂点を編集できます。";
+  } else {
+    ui.svgInspectorHint.textContent = "枠の角でサイズ変更、上の丸で回転、辺の四角で傾斜できます。";
+  }
+  const labels = {
+    cx: "中心 X",
+    cy: "中心 Y",
+    dx: "移動 X",
+    dy: "移動 Y",
+    fill: "塗り",
+    height: "高さ",
+    r: "半径",
+    rx: "角丸 X / 半径 X",
+    ry: "角丸 Y / 半径 Y",
+    stroke: "線",
+    "stroke-width": "線の幅",
+    width: "幅",
+    x: "X",
+    x1: "始点 X",
+    x2: "終点 X",
+    y: "Y",
+    y1: "始点 Y",
+    y2: "終点 Y",
+    "font-size": "文字サイズ",
+  };
+  const simpleText = !source.children.length &&
+    [...source.childNodes].every((child) => child.nodeType === Node.TEXT_NODE);
+  if (["text", "tspan"].includes(elementName) && simpleText) {
+    const label = document.createElement("label");
+    label.textContent = "文字";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.value = source.textContent || "";
+    input.setAttribute("aria-label", "文字");
+    input.addEventListener("change", () => {
+      source.textContent = input.value;
+      syncSvgModel(tab, elementId);
+    });
+    label.append(input);
+    ui.svgProperties.append(label);
+  } else if (["text", "tspan"].includes(elementName)) {
+    const hint = document.createElement("p");
+    hint.className = "svg-property-note";
+    hint.textContent = "装飾を保つため、子要素のある文字は文字編集モードで編集してください。";
+    ui.svgProperties.append(hint);
+  }
+
+  for (const attributeName of svgEditableAttributes(elementName)) {
+    const label = document.createElement("label");
+    label.textContent = labels[attributeName] || attributeName;
+    const input = document.createElement("input");
+    const rawValue = source.getAttribute(attributeName) || "";
+    const numeric = !["fill", "stroke"].includes(attributeName) &&
+      (!rawValue || Number.isFinite(Number(rawValue)));
+    input.type = numeric ? "number" : "text";
+    if (numeric) {
+      input.step = "any";
+      if (["height", "r", "rx", "ry", "stroke-width", "width", "font-size"].includes(attributeName)) {
+        input.min = "0";
+      }
+    }
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.value = rawValue;
+    input.setAttribute("aria-label", labels[attributeName] || attributeName);
+    input.addEventListener("change", () => {
+      const value = input.value.trim();
+      if (numeric && value && !Number.isFinite(Number(value))) {
+        showError(new TypeError(`${labels[attributeName] || attributeName}には数値を入力してください。`));
+        return;
+      }
+      if (
+        numeric &&
+        value &&
+        input.min &&
+        Number(value) < Number(input.min)
+      ) {
+        showError(new TypeError(`${labels[attributeName] || attributeName}には0以上の値を入力してください。`));
+        return;
+      }
+      if (value) source.setAttribute(attributeName, value);
+      else source.removeAttribute(attributeName);
+      syncSvgModel(tab, elementId);
+    });
+    label.append(input);
+    ui.svgProperties.append(label);
+  }
+
+  tab.svgTransforms ||= new Map();
+  if (!tab.svgTransforms.has(elementId)) {
+    tab.svgTransforms.set(elementId, {
+      base: source.getAttribute("transform") || "",
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      skewX: 0,
+      skewY: 0,
+      translateX: 0,
+      translateY: 0,
+    });
+  }
+  const transformValues = tab.svgTransforms.get(elementId);
+  const bounds = preview?.getBBox();
+  const centerX = bounds ? bounds.x + bounds.width / 2 : 0;
+  const centerY = bounds ? bounds.y + bounds.height / 2 : 0;
+  const transformHeading = document.createElement("h3");
+  transformHeading.className = "svg-property-heading";
+  transformHeading.textContent = "変形";
+  ui.svgProperties.append(transformHeading);
+  const transformControls = [
+    ["scaleX", "追加倍率 X"],
+    ["scaleY", "追加倍率 Y"],
+    ["rotation", "追加回転（°）"],
+    ["skewX", "追加傾斜 X（°）"],
+    ["skewY", "追加傾斜 Y（°）"],
+  ];
+  for (const [key, labelText] of transformControls) {
+    const label = document.createElement("label");
+    label.textContent = labelText;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = "any";
+    if (key === "scaleX" || key === "scaleY") {
+      input.min = "0.02";
+      input.max = "100";
+    } else if (key === "skewX" || key === "skewY") {
+      input.min = "-40";
+      input.max = "40";
+    }
+    input.value = String(transformValues[key]);
+    input.setAttribute("aria-label", labelText);
+    input.addEventListener("change", () => {
+      const value = Number(input.value);
+      if (
+        !input.value ||
+        !Number.isFinite(value) ||
+        input.min && value < Number(input.min) ||
+        input.max && value > Number(input.max)
+      ) {
+        showError(new TypeError(`${labelText}には数値を入力してください。`));
+        return;
+      }
+      transformValues[key] = value;
+      applySvgTransform(source, preview, transformValues, centerX, centerY);
+      syncSvgModel(tab, elementId);
+    });
+    label.append(input);
+    ui.svgProperties.append(label);
+  }
+  if (elementName === "path" && !parseSvgPath(source.getAttribute("d") || "")) {
+    const hint = document.createElement("p");
+    hint.className = "svg-property-note";
+    hint.textContent = "このパス形式の点編集には未対応です。文字編集モードで編集してください。";
+    ui.svgProperties.append(hint);
+  } else if (
+    ["polygon", "polyline"].includes(elementName) &&
+    !parseSvgPoints(source.getAttribute("points") || "")
+  ) {
+    const hint = document.createElement("p");
+    hint.className = "svg-property-note";
+    hint.textContent = "頂点データを読み取れません。文字編集モードで編集してください。";
+    ui.svgProperties.append(hint);
+  }
+  renderSvgSelectionOverlay(tab, elementId);
+}
+
+function applySvgTransform(source, preview, values, centerX, centerY) {
+  const transform = buildSvgTransform(values.base, values, centerX, centerY);
+  source.setAttribute("transform", transform);
+  preview.setAttribute("transform", transform);
+}
+
+function addSvgHandle(group, x, y, kind, index = "") {
+  const handle = document.createElementNS(SVG_NAMESPACE, "circle");
+  handle.setAttribute("cx", x);
+  handle.setAttribute("cy", y);
+  handle.setAttribute("r", group.dataset.handleRadius || "6");
+  handle.dataset.monacHandle = kind;
+  handle.dataset.monacIndex = String(index);
+  group.append(handle);
+  return handle;
+}
+
+function renderSvgSelectionOverlay(tab, elementId) {
+  const root = ui.svgStage.querySelector("svg");
+  const target = tab.svgPreviewElements.get(elementId);
+  if (!root || !target) return;
+  ui.svgStage.querySelector("[data-monac-selection-overlay]")?.remove();
+  const bounds = target.getBBox();
+  if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return;
+
+  const rootMatrix = root.getScreenCTM();
+  const targetMatrix = target.getScreenCTM();
+  if (!rootMatrix || !targetMatrix) return;
+  const matrix = rootMatrix.inverse().multiply(targetMatrix);
+  const screenScale = Math.max(0.001, Math.hypot(targetMatrix.a, targetMatrix.b));
+  const overlay = document.createElementNS(SVG_NAMESPACE, "g");
+  overlay.dataset.monacSelectionOverlay = "";
+  overlay.dataset.monacSvgId = elementId;
+  overlay.dataset.handleRadius = String(6 / screenScale);
+  overlay.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`);
+  const frame = document.createElementNS(SVG_NAMESPACE, "rect");
+  frame.setAttribute("x", bounds.x);
+  frame.setAttribute("y", bounds.y);
+  frame.setAttribute("width", bounds.width);
+  frame.setAttribute("height", bounds.height);
+  frame.setAttribute("fill", "none");
+  frame.setAttribute("pointer-events", "none");
+  overlay.append(frame);
+
+  const corners = [
+    [bounds.x, bounds.y, "resize-nw"],
+    [bounds.x + bounds.width, bounds.y, "resize-ne"],
+    [bounds.x, bounds.y + bounds.height, "resize-sw"],
+    [bounds.x + bounds.width, bounds.y + bounds.height, "resize-se"],
+  ];
+  for (const [x, y, kind] of corners) addSvgHandle(overlay, x, y, kind);
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  const rotateHandleY = bounds.y - Math.max(bounds.height * 0.15, 24 / screenScale);
+  const rotateLink = document.createElementNS(SVG_NAMESPACE, "line");
+  rotateLink.setAttribute("x1", centerX);
+  rotateLink.setAttribute("y1", bounds.y);
+  rotateLink.setAttribute("x2", centerX);
+  rotateLink.setAttribute("y2", rotateHandleY);
+  rotateLink.setAttribute("pointer-events", "none");
+  overlay.append(rotateLink);
+  addSvgHandle(overlay, centerX, rotateHandleY, "rotate");
+  addSvgHandle(overlay, centerX, bounds.y, "skew-x");
+  addSvgHandle(overlay, bounds.x, centerY, "skew-y");
+
+  const source = tab.svgElements.get(elementId);
+  if (["polygon", "polyline"].includes(source.localName.toLowerCase())) {
+    const points = parseSvgPoints(source.getAttribute("points") || "");
+    if (points) points.forEach((point, index) =>
+      addSvgHandle(overlay, point.x, point.y, "vertex", index)
+    );
+  } else if (source.localName.toLowerCase() === "path") {
+    const segments = parseSvgPath(source.getAttribute("d") || "");
+    if (segments) {
+      let previous = null;
+      let subpathStart = null;
+      segments.forEach((segment, index) => {
+        if (segment.command === "Z") {
+          previous = subpathStart;
+          return;
+        }
+        if (segment.command === "M") subpathStart = segment.point;
+        if (segment.command === "C") {
+          for (const [kind, point, from] of [
+            ["control1", segment.control1, previous],
+            ["control2", segment.control2, segment.point],
+          ]) {
+            if (from) {
+              const line = document.createElementNS(SVG_NAMESPACE, "line");
+              line.setAttribute("x1", from.x);
+              line.setAttribute("y1", from.y);
+              line.setAttribute("x2", point.x);
+              line.setAttribute("y2", point.y);
+              line.setAttribute("pointer-events", "none");
+              overlay.append(line);
+            }
+            addSvgHandle(overlay, point.x, point.y, kind, index);
+          }
+        } else if (segment.command === "Q") {
+          if (previous) {
+            const line = document.createElementNS(SVG_NAMESPACE, "line");
+            line.setAttribute("x1", previous.x);
+            line.setAttribute("y1", previous.y);
+            line.setAttribute("x2", segment.control.x);
+            line.setAttribute("y2", segment.control.y);
+            line.setAttribute("pointer-events", "none");
+            overlay.append(line);
+          }
+          addSvgHandle(overlay, segment.control.x, segment.control.y, "control", index);
+        }
+        addSvgHandle(overlay, segment.point.x, segment.point.y, "anchor", index);
+        previous = segment.point;
+      });
+    }
+  }
+  root.append(overlay);
+}
+
+function syncSvgModel(tab, selectedId) {
+  if (!tab.svgDocument.documentElement.namespaceURI) {
+    tab.svgDocument.documentElement.setAttribute("xmlns", SVG_NAMESPACE);
+  }
+  const value = new XMLSerializer().serializeToString(tab.svgDocument);
+  tab.model.pushEditOperations(
+    [],
+    [{ range: tab.model.getFullModelRange(), text: value }],
+    () => null,
+  );
+  renderSvgEditor(tab, selectedId, true);
+}
+
+function renderSvgEditor(tab, selectedId = tab.svgSelectionId || "", preserveTransforms = false) {
+  ui.svgStage.replaceChildren();
+  ui.svgProperties.replaceChildren();
+  ui.svgSelectionStatus.textContent = "";
+  try {
+    const value = tab.model.getValue();
+    if (!preserveTransforms && tab.svgGuiModelValue !== value) {
+      tab.svgTransforms = new Map();
+    }
+    const sourceDocument = new DOMParser().parseFromString(value, "image/svg+xml");
+    const root = sourceDocument.documentElement;
+    if (
+      root.localName.toLowerCase() !== "svg" ||
+      [...sourceDocument.getElementsByTagName("parsererror")].some((element) =>
+        element.namespaceURI !== SVG_NAMESPACE
+      )
+    ) {
+      throw new Error("有効なSVG XMLではありません。文字で編集して内容を確認してください。");
+    }
+
+    tab.svgDocument = sourceDocument;
+    tab.svgGuiModelValue = value;
+    tab.svgElements = new Map();
+    tab.svgPreviewElements = new Map();
+    const preview = cloneSvgPreviewNode(root, tab.svgElements, tab.svgPreviewElements);
+    preview.setAttribute("xmlns", SVG_NAMESPACE);
+    sanitizeSvgPreview(preview);
+    ui.svgStage.append(preview);
+    selectSvgElement(tab, selectedId);
+
+    let drag = null;
+    preview.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const handle = event.target instanceof Element
+        ? event.target.closest("[data-monac-handle]")
+        : null;
+      if (handle) {
+        const overlay = handle.closest("[data-monac-selection-overlay]");
+        const elementId = overlay?.dataset.monacSvgId;
+        const target = tab.svgPreviewElements.get(elementId);
+        const source = tab.svgElements.get(elementId);
+        const pointMatrix = target?.getScreenCTM?.();
+        const start = target && svgPointInElement(target, event, pointMatrix);
+        if (!target || !source || !start) return;
+        event.preventDefault();
+        const kind = handle.dataset.monacHandle;
+        if (["vertex", "anchor", "control", "control1", "control2"].includes(kind)) {
+          const polygonPoints = ["vertex"].includes(kind)
+            ? parseSvgPoints(source.getAttribute("points") || "")
+            : null;
+          const pathSegments = ["anchor", "control", "control1", "control2"].includes(kind)
+            ? parseSvgPath(source.getAttribute("d") || "")
+            : null;
+          if (kind === "vertex" && !polygonPoints || kind !== "vertex" && !pathSegments) {
+            notify("この図形の点データをGUIで編集できません。文字編集モードをご利用ください。", true);
+            return;
+          }
+          drag = {
+            type: "node",
+            kind,
+            elementId,
+            target,
+            source,
+            index: Number(handle.dataset.monacIndex),
+            start,
+            polygonPoints,
+            pathSegments,
+            pointMatrix,
+            moved: false,
+          };
+        } else {
+          const bounds = target.getBBox();
+          const values = { ...tab.svgTransforms.get(elementId) };
+          const kindParts = kind.split("-");
+          const corner = kindParts[1] || "";
+          const oppositeX = corner.endsWith("w") ? bounds.x + bounds.width : bounds.x;
+          const oppositeY = corner.startsWith("n") ? bounds.y + bounds.height : bounds.y;
+          drag = {
+            type: "transform",
+            kind,
+            elementId,
+            target,
+            source,
+            start,
+            values,
+            initialScale: { x: values.scaleX, y: values.scaleY },
+            bounds,
+            pointMatrix,
+            center: {
+              x: bounds.x + bounds.width / 2,
+              y: bounds.y + bounds.height / 2,
+            },
+            opposite: { x: oppositeX, y: oppositeY },
+            startAngle: Math.atan2(
+              start.y - (bounds.y + bounds.height / 2),
+              start.x - (bounds.x + bounds.width / 2),
+            ),
+            moved: false,
+          };
+        }
+        preview.setPointerCapture(event.pointerId);
+        return;
+      }
+      const target = event.target instanceof Element
+        ? event.target.closest("[data-monac-svg-id]")
+        : null;
+      if (!target || !preview.contains(target)) {
+        selectSvgElement(tab, "");
+        return;
+      }
+      const elementId = target.dataset.monacSvgId;
+      const source = tab.svgElements.get(elementId);
+      const pointMatrix = target.parentElement?.getScreenCTM?.();
+      const start = svgPointInParent(target, event, pointMatrix);
+      if (!source || !start) return;
+      event.preventDefault();
+      selectSvgElement(tab, elementId);
+      const transformValues = tab.svgTransforms.get(elementId);
+      drag = {
+        type: "move",
+        elementId,
+        target,
+        source,
+        start,
+        pointMatrix,
+        originalPositions: new Map(svgPositionAttributes(source.localName).map((attribute) => [
+          attribute,
+          source.getAttribute(attribute),
+        ])),
+        initialTranslation: {
+          x: transformValues.translateX,
+          y: transformValues.translateY,
+        },
+        moved: false,
+        offset: { x: 0, y: 0 },
+      };
+      preview.setPointerCapture(event.pointerId);
+    });
+    preview.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      const current = drag.type === "move"
+        ? svgPointInParent(drag.target, event, drag.pointMatrix)
+        : svgPointInElement(drag.target, event, drag.pointMatrix);
+      if (!current) return;
+      const x = current.x - drag.start.x;
+      const y = current.y - drag.start.y;
+      if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) return;
+      drag.moved = true;
+      drag.offset = { x, y };
+      if (drag.type === "transform") {
+        const values = drag.values;
+        if (drag.kind.startsWith("resize-")) {
+          const initialX = drag.start.x - drag.opposite.x;
+          const initialY = drag.start.y - drag.opposite.y;
+          const scaleX = Math.abs(initialX) > 0.001
+            ? ((current.x - drag.opposite.x) / initialX) * drag.initialScale.x
+            : drag.initialScale.x;
+          const scaleY = Math.abs(initialY) > 0.001
+            ? ((current.y - drag.opposite.y) / initialY) * drag.initialScale.y
+            : drag.initialScale.y;
+          if (Number.isFinite(scaleX)) values.scaleX = Math.max(0.02, Math.min(100, scaleX));
+          if (Number.isFinite(scaleY)) values.scaleY = Math.max(0.02, Math.min(100, scaleY));
+        } else if (drag.kind === "rotate") {
+          const angle = Math.atan2(
+            current.y - drag.center.y,
+            current.x - drag.center.x,
+          );
+          values.rotation += ((angle - drag.startAngle) * 180) / Math.PI;
+          drag.startAngle = angle;
+          drag.values.rotation = values.rotation;
+          drag.start = current;
+        } else if (drag.kind === "skew-x") {
+          values.skewX = Math.max(
+            -40,
+            Math.min(
+              40,
+              values.skewX + (Math.atan2(x, Math.max(1, drag.bounds.height)) * 180) / Math.PI,
+            ),
+          );
+          drag.start = current;
+        } else if (drag.kind === "skew-y") {
+          values.skewY = Math.max(
+            -40,
+            Math.min(
+              40,
+              values.skewY + (Math.atan2(y, Math.max(1, drag.bounds.width)) * 180) / Math.PI,
+            ),
+          );
+          drag.start = current;
+        }
+        applySvgTransform(
+          drag.source,
+          drag.target,
+          values,
+          drag.center.x,
+          drag.center.y,
+        );
+      } else if (drag.type === "node") {
+        if (drag.kind === "vertex") {
+          drag.polygonPoints[drag.index] = current;
+          drag.source.setAttribute("points", serializeSvgPoints(drag.polygonPoints));
+          drag.target.setAttribute("points", serializeSvgPoints(drag.polygonPoints));
+        } else {
+          const segment = drag.pathSegments[drag.index];
+          if (drag.kind === "anchor") segment.point = current;
+          else if (drag.kind === "control") segment.control = current;
+          else segment[drag.kind] = current;
+          const value = serializeSvgPath(drag.pathSegments);
+          drag.source.setAttribute("d", value);
+          drag.target.setAttribute("d", value);
+        }
+      } else {
+        const values = tab.svgTransforms.get(drag.elementId);
+        if (applySvgOffset(drag.source, x, y, drag.originalPositions)) {
+          for (const attribute of drag.originalPositions.keys()) {
+            drag.target.setAttribute(attribute, drag.source.getAttribute(attribute));
+          }
+        } else {
+          values.translateX = drag.initialTranslation.x + x;
+          values.translateY = drag.initialTranslation.y + y;
+          const bounds = drag.target.getBBox();
+          applySvgTransform(
+            drag.source,
+            drag.target,
+            values,
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+          );
+        }
+      }
+    });
+    const finishDrag = () => {
+      if (!drag) return;
+      if (drag.moved) {
+        const elementId = drag.elementId;
+        if (drag.type === "transform" || drag.type === "move") {
+          const transform = drag.target.getAttribute("transform") || "";
+          if (transform) drag.source.setAttribute("transform", transform);
+          else drag.source.removeAttribute("transform");
+          if (drag.type === "transform") {
+            tab.svgTransforms.set(elementId, drag.values);
+          }
+        }
+        drag = null;
+        syncSvgModel(tab, elementId);
+        return;
+      }
+      drag = null;
+    };
+    preview.addEventListener("pointerup", finishDrag);
+    preview.addEventListener("pointercancel", finishDrag);
+  } catch (error) {
+    ui.svgStage.replaceChildren();
+    const message = document.createElement("p");
+    message.className = "svg-stage-message";
+    message.textContent = errorMessage(error);
+    ui.svgStage.append(message);
+    ui.svgInspectorHint.textContent = "SVGの読み込みに失敗しました。文字で編集して内容を確認してください。";
+    ui.svgSelectionStatus.textContent = "SVGを表示できません";
+    showError(error);
+  }
+}
+
 function normalizeLinkPath(path) {
   const segments = [];
   for (const segment of path.split("/")) {
@@ -511,9 +1242,9 @@ function renderTabs() {
   ui.tabs.replaceChildren();
   for (const tab of tabs) {
     const button = document.createElement("div");
-    button.className = `tab${tab.path === activePath ? " active" : ""}`;
+    button.className = `tab${!activeExecutionTabId && tab.path === activePath ? " active" : ""}`;
     button.setAttribute("role", "tab");
-    button.setAttribute("aria-selected", String(tab.path === activePath));
+    button.setAttribute("aria-selected", String(!activeExecutionTabId && tab.path === activePath));
     button.tabIndex = 0;
     button.title = tab.path;
     button.draggable = true;
@@ -584,7 +1315,39 @@ function renderTabs() {
     button.append(close);
     ui.tabs.append(button);
   }
-  ui.saveFile.disabled = !activePath || !pointer;
+  for (const executionTab of executionTabs) {
+    const button = document.createElement("div");
+    button.className = `tab execution-tab${executionTab.id === activeExecutionTabId ? " active" : ""}`;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(executionTab.id === activeExecutionTabId));
+    button.tabIndex = 0;
+    button.title = `Canvas: ${executionTab.path}`;
+    button.dataset.executionId = executionTab.id;
+    const label = document.createElement("span");
+    label.className = "tab-name";
+    label.textContent = `▶ ${basename(executionTab.path)}`;
+    button.append(label);
+    button.addEventListener("click", () => activateExecutionTab(executionTab.id));
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activateExecutionTab(executionTab.id);
+      }
+    });
+    const close = document.createElement("button");
+    close.className = "tab-close";
+    close.type = "button";
+    close.textContent = "×";
+    close.title = "実行タブを閉じる";
+    close.setAttribute("aria-label", `${basename(executionTab.path)}の実行タブを閉じる`);
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeExecutionTab(executionTab.id);
+    });
+    button.append(close);
+    ui.tabs.append(button);
+  }
+  ui.saveFile.disabled = Boolean(activeExecutionTabId) || !activePath || !pointer;
   ui.saveAll.disabled = !tabs.some(isDirty) || !pointer;
   renderTreeDirtyState();
 }
@@ -625,13 +1388,31 @@ function activateTab(path) {
   const tab = getTab(path);
   if (!tab) return;
   clearFileDetails();
-  ui.editor.hidden = false;
+  activeExecutionTabId = "";
+  ui.executionWorkbench.hidden = true;
+  for (const view of ui.executionWorkbench.querySelectorAll(".execution-view")) view.hidden = true;
   activePath = path;
   editor.setModel(tab.model);
+  ui.editor.hidden = false;
   ui.welcome.hidden = true;
   ui.error.hidden = true;
   ui.statusPath.textContent = path;
-  ui.statusLanguage.textContent = humanLanguage(languageForPath(path));
+  const isSvg = isSvgPath(path);
+  const svgMode = isSvg ? svgModeForPath(path, tab.svgMode) : "text";
+  tab.svgMode = svgMode;
+  ui.svgModeBar.hidden = !isSvg;
+  ui.svgWorkbench.hidden = !isSvg || svgMode !== "gui";
+  ui.editor.classList.toggle("svg-text-mode", isSvg && svgMode === "text");
+  ui.editor.hidden = isSvg && svgMode === "gui";
+  for (const button of ui.svgModeBar.querySelectorAll("[data-svg-mode]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.svgMode === svgMode));
+  }
+  ui.statusLanguage.textContent = isSvg
+    ? (svgMode === "gui" ? "SVG (GUI)" : "XML")
+    : humanLanguage(languageForPath(path));
+  if (isSvg && svgMode === "gui") renderSvgEditor(tab);
+  else if (!isSvg) ui.svgStage.replaceChildren();
+  if (!ui.editor.hidden) editor.layout();
   renderTabs();
   renderTreeSelection();
 }
@@ -645,7 +1426,10 @@ function closeTab(path) {
   const closingIndex = tabs.indexOf(tab);
   tabs = tabs.filter((item) => item !== tab);
   tab.model.dispose();
-  if (activePath === path) {
+  if (activePath === path && activeExecutionTabId) {
+    const nextTab = tabs[Math.min(closingIndex, tabs.length - 1)];
+    activePath = nextTab?.path ?? "";
+  } else if (activePath === path) {
     const nextTab = tabs[Math.min(closingIndex, tabs.length - 1)];
     if (nextTab) {
       activateTab(nextTab.path);
@@ -653,6 +1437,9 @@ function closeTab(path) {
       activePath = "";
       editor.setModel(null);
       clearFileDetails();
+      ui.svgModeBar.hidden = true;
+      ui.svgWorkbench.hidden = true;
+      ui.editor.classList.remove("svg-text-mode");
       ui.editor.hidden = false;
       ui.welcome.hidden = false;
       ui.statusPath.textContent = pointer ? rootName : "準備完了";
@@ -663,18 +1450,68 @@ function closeTab(path) {
   renderTabs();
 }
 
-async function openFile(path) {
+function activateExecutionTab(id) {
+  const tab = executionTabs.find((item) => item.id === id);
+  if (!tab) return;
+  clearFileDetails();
+  activeExecutionTabId = id;
+  ui.editor.hidden = true;
+  ui.svgModeBar.hidden = true;
+  ui.svgWorkbench.hidden = true;
+  ui.welcome.hidden = true;
+  ui.error.hidden = true;
+  ui.executionWorkbench.hidden = false;
+  for (const view of ui.executionWorkbench.querySelectorAll(".execution-view")) {
+    view.hidden = view.dataset.executionId !== id;
+  }
+  ui.statusPath.textContent = `実行: ${tab.path}`;
+  ui.statusLanguage.textContent = "Canvas";
+  renderTabs();
+}
+
+function closeExecutionTab(id) {
+  const index = executionTabs.findIndex((tab) => tab.id === id);
+  if (index < 0) return;
+  const [tab] = executionTabs.splice(index, 1);
+  tab.closed = true;
+  tab.iframe.srcdoc = "";
+  tab.view.remove();
+  if (activeExecutionTabId === id) {
+    const nextExecution = executionTabs[Math.min(index, executionTabs.length - 1)];
+    if (nextExecution) {
+      activateExecutionTab(nextExecution.id);
+    } else {
+      activeExecutionTabId = "";
+      if (activePath && getTab(activePath)) activateTab(activePath);
+      else {
+        ui.executionWorkbench.hidden = true;
+        ui.editor.hidden = true;
+        ui.welcome.hidden = false;
+        ui.statusPath.textContent = pointer ? rootName : "準備完了";
+        ui.statusLanguage.textContent = "Plain Text";
+        renderTabs();
+      }
+    }
+  }
+  renderTabs();
+}
+
+async function openFile(path, requestedSvgMode = null) {
   if (!editor || !window.monaco) {
     throw new Error("Monaco Editorの準備ができていません。読み込み完了後にもう一度お試しください。");
   }
   const existing = getTab(path);
   if (existing) {
+    if (isSvgPath(path) && requestedSvgMode) {
+      existing.svgMode = svgModeForPath(path, requestedSvgMode);
+    }
     activateTab(path);
     return;
   }
   const file = await pointer.getFile(path);
   const kind = classifyFile(file, path);
-  if (kind !== "text") {
+  const isSvg = isSvgPath(path);
+  if (kind !== "text" && !isSvg) {
     showFileDetails(path, file, kind);
     return;
   }
@@ -685,7 +1522,12 @@ async function openFile(path) {
   }
   const language = languageForPath(path);
   const model = window.monaco.editor.createModel(value, language, modelUri(path));
-  const tab = { path, model, savedValue: value };
+  const tab = {
+    path,
+    model,
+    savedValue: value,
+    svgMode: svgModeForPath(path, requestedSvgMode),
+  };
   model.onDidChangeContent(() => renderTabs());
   tabs.push(tab);
   activateTab(path);
@@ -995,7 +1837,24 @@ function showContextMenu(x, y, target) {
     appendMenuItem("新しいフォルダー", () => createEntry("directory", destination));
     appendMenuSeparator();
   } else if (hasSingleFile) {
-    appendMenuItem("開く", () => openFile(target.path).catch(showError));
+    if (isRunnableJavaScriptPath(target.path)) {
+      appendMenuItem("GameEngine Fileとして実行", () =>
+        runWorkspaceFile(target.path).catch(showError)
+      );
+      appendMenuSeparator();
+      appendMenuItem("開く", () => openFile(target.path).catch(showError));
+    } else if (isStudioProjectJsonPath(target.path)) {
+      appendMenuItem("Studio JSONを読み込む", () =>
+        importStudioProject(target.path, destination).catch(showError)
+      );
+      appendMenuSeparator();
+      appendMenuItem("開く", () => openFile(target.path).catch(showError));
+    } else if (isSvgPath(target.path)) {
+      appendMenuItem("GUIで編集", () => openFile(target.path, "gui").catch(showError));
+      appendMenuItem("文字で編集", () => openFile(target.path, "text").catch(showError));
+    } else {
+      appendMenuItem("開く", () => openFile(target.path).catch(showError));
+    }
     appendMenuSeparator();
   }
 
@@ -1028,6 +1887,138 @@ function showContextMenu(x, y, target) {
   ui.contextMenu.style.left = `${left}px`;
   ui.contextMenu.style.top = `${top}px`;
   ui.contextMenu.querySelector("button:not(:disabled)")?.focus();
+}
+
+function isRunnableJavaScriptPath(path) {
+  return /\.(?:js|mjs)$/i.test(path);
+}
+
+function isStudioProjectJsonPath(path) {
+  return /\.json$/i.test(path);
+}
+
+function setExecutionState(tab, message, error = false) {
+  tab.state.textContent = message;
+  tab.state.title = message;
+  tab.state.classList.toggle("error", error);
+}
+
+function createExecutionTab(path) {
+  const id = `execution-${nextExecutionTabId++}`;
+  const view = document.createElement("div");
+  view.className = "execution-view";
+  view.dataset.executionId = id;
+  view.hidden = true;
+  const toolbar = document.createElement("div");
+  toolbar.className = "execution-toolbar";
+  const title = document.createElement("strong");
+  title.textContent = `Canvas — ${basename(path)}`;
+  title.title = path;
+  const state = document.createElement("span");
+  state.className = "execution-state";
+  state.textContent = "読み込み中…";
+  const stop = document.createElement("button");
+  stop.className = "button";
+  stop.type = "button";
+  stop.textContent = "停止";
+  const iframe = document.createElement("iframe");
+  iframe.className = "execution-frame";
+  iframe.title = `${path} のCanvas実行`;
+  iframe.setAttribute("sandbox", "allow-scripts");
+  stop.addEventListener("click", () => {
+    iframe.srcdoc = "";
+    state.textContent = "停止中";
+    state.title = "停止中";
+    state.classList.remove("error");
+  });
+  toolbar.append(title, state, stop);
+  view.append(toolbar, iframe);
+  ui.executionWorkbench.append(view);
+  const tab = { id, path, view, state, iframe, token: `${id}-${Date.now()}-${Math.random()}` };
+  executionTabs.push(tab);
+  activateExecutionTab(id);
+  return tab;
+}
+
+async function readWorkspaceRunFiles(
+  directoryPath = "",
+  files = [],
+  assets = {},
+  workspacePointer = pointer,
+  openSources = new Map(),
+) {
+  for (const entry of await workspacePointer.listDirectory(directoryPath)) {
+    if (entry.kind === "directory") {
+      if (entry.name === SETTINGS_DIRECTORY || entry.name === "node_modules") continue;
+      const childPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+      await readWorkspaceRunFiles(childPath, files, assets, workspacePointer, openSources);
+      continue;
+    }
+    const path = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+    if (isRunnableJavaScriptPath(path)) {
+      files.push({
+        path,
+        value: openSources.has(path) ? openSources.get(path) : await workspacePointer.readFile(path),
+      });
+    } else if (/\.svg$/i.test(path)) {
+      const svg = await workspacePointer.readFile(path);
+      const name = basename(path).replace(/\.svg$/i, "");
+      assets[path] = svg;
+      if (!(name in assets)) assets[name] = svg;
+    }
+  }
+  return { files, assets };
+}
+
+async function runWorkspaceFile(path) {
+  if (!pointer) throw new Error("先にワークスペースを開いてください。");
+  const workspacePointer = pointer;
+  const openSources = new Map(tabs.map((tab) => [tab.path, tab.model.getValue()]));
+  const executionTab = createExecutionTab(path);
+  try {
+    const [{ files, assets }, engineResponse, uiResponse] = await Promise.all([
+      readWorkspaceRunFiles("", [], {}, workspacePointer, openSources),
+      fetch(new URL("../engine.js", location.href)),
+      fetch(new URL("../ui-objects.js", location.href)),
+    ]);
+    if (!executionTabs.includes(executionTab)) return;
+    if (!engineResponse.ok) throw new Error(`engine.jsを読み込めません: HTTP ${engineResponse.status}`);
+    if (!uiResponse.ok) throw new Error(`ui-objects.jsを読み込めません: HTTP ${uiResponse.status}`);
+    const documentText = buildRunnerDocument({
+      entryPath: path,
+      files,
+      engineSource: await engineResponse.text(),
+      uiSource: await uiResponse.text(),
+      assets,
+      token: executionTab.token,
+    });
+    executionTab.iframe.srcdoc = documentText;
+    setExecutionState(executionTab, "実行中");
+  } catch (error) {
+    if (!executionTabs.includes(executionTab)) return;
+    setExecutionState(executionTab, `実行できません: ${errorMessage(error)}`, true);
+    showError(error);
+  }
+}
+
+async function importStudioProject(path, destination) {
+  if (!pointer) throw new Error("先にワークスペースを開いてください。");
+  const openTab = getTab(path);
+  const source = openTab ? openTab.model.getValue() : await pointer.readFile(path);
+  const { folderPath, project: normalized } = await writeStudioProjectJson(pointer, destination, source);
+
+  for (const folder of normalized.folders) {
+    const segments = folder.split("/");
+    for (let index = 0; index < segments.length; index += 1) {
+      expandedFolders.add(`${folderPath}/${segments.slice(0, index + 1).join("/")}`);
+    }
+  }
+  expandedFolders.add(folderPath);
+  expandedFolders.add(destination);
+  await renderTree();
+  const activeFilePath = `${folderPath}/${normalized.activeFile}`;
+  await openFile(activeFilePath);
+  notify(`Studioプロジェクト「${normalized.title}」を「${folderPath}」へ読み込みました。`);
 }
 
 function activeContextDestination() {
@@ -1591,9 +2582,12 @@ async function deleteEntries(entries) {
         ));
       }
     }
-    if (!activePath && editor && (removedActiveFile || removedFileDetails)) {
+    if (!activePath && editor && !activeExecutionTabId && (removedActiveFile || removedFileDetails)) {
       editor.setModel(null);
       clearFileDetails();
+      ui.svgModeBar.hidden = true;
+      ui.svgWorkbench.hidden = true;
+      ui.editor.classList.remove("svg-text-mode");
       ui.editor.hidden = false;
       ui.welcome.hidden = false;
       ui.statusPath.textContent = rootName;
@@ -1684,11 +2678,24 @@ async function openWorkspaceHandle(handle) {
     console.error(error);
   }
 
+  for (const tab of executionTabs) {
+    tab.closed = true;
+    tab.iframe.srcdoc = "";
+    tab.view.remove();
+  }
+  executionTabs = [];
+  activeExecutionTabId = "";
+  ui.executionWorkbench.replaceChildren();
+  ui.executionWorkbench.hidden = true;
   for (const tab of tabs) tab.model.dispose();
+  editor?.setModel(null);
   clearFileDetails();
   releaseCustomIconUrls();
   tabs = [];
   activePath = "";
+  ui.svgModeBar.hidden = true;
+  ui.svgWorkbench.hidden = true;
+  ui.editor.classList.remove("svg-text-mode");
   selectedPath = "";
   selectedKind = "";
   expandedFolders = new Set();
@@ -1781,6 +2788,13 @@ function initializeMonaco() {
 
 ui.openFolder.addEventListener("click", openFolder);
 ui.openSettings.addEventListener("click", openSettings);
+ui.svgModeBar.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-svg-mode]");
+  const tab = getTab(activePath);
+  if (!button || !tab || !isSvgPath(tab.path)) return;
+  tab.svgMode = svgModeForPath(tab.path, button.dataset.svgMode);
+  activateTab(tab.path);
+});
 ui.settingsForm.addEventListener("submit", saveSettings);
 $("#cancel-settings").addEventListener("click", () => ui.settingsDialog.close());
 $("#reset-settings").addEventListener("click", () => {
@@ -1848,6 +2862,24 @@ ui.tabs.addEventListener("drop", (event) => {
   reorderTab(draggedTabPath, null);
   draggedTabPath = "";
   clearTabDropTargets();
+});
+window.addEventListener("message", (event) => {
+  const tab = executionTabs.find((item) =>
+    item.iframe.contentWindow === event.source &&
+    event.data?.source === "monac-game-runner" &&
+    event.data.token === item.token
+  );
+  if (!tab) return;
+  if (event.data.type === "log") {
+    const level = ["log", "warn", "error"].includes(event.data.payload?.level)
+      ? event.data.payload.level
+      : "log";
+    console[level](`[${tab.path}]`, ...(Array.isArray(event.data.payload?.args) ? event.data.payload.args : []));
+  } else if (event.data.type === "error") {
+    const message = String(event.data.payload?.message || "ゲームの実行中にエラーが発生しました。");
+    setExecutionState(tab, `実行エラー: ${message}`, true);
+    console.error(`[${tab.path}] ${message}`);
+  }
 });
 document.addEventListener("pointerdown", (event) => {
   if (!ui.contextMenu.hidden && !ui.contextMenu.contains(event.target)) hideContextMenu();

@@ -45,6 +45,22 @@
       <div id="tabs" class="tabs" role="tablist" aria-label="開いているファイル"></div>
       <div class="editor-content">
         <div id="editor" aria-label="コードエディター"></div>
+        <div id="svg-mode-bar" class="svg-mode-bar" role="toolbar" aria-label="SVG編集モード" hidden>
+          <button class="button svg-mode-button" type="button" data-svg-mode="gui">GUIで編集</button>
+          <button class="button svg-mode-button" type="button" data-svg-mode="text">文字で編集</button>
+          <span id="svg-selection-status" aria-live="polite"></span>
+        </div>
+        <section id="svg-workbench" class="svg-workbench" aria-label="SVGエディター" hidden>
+          <div class="svg-gui">
+            <div id="svg-stage" class="svg-stage" aria-label="SVGキャンバス"></div>
+            <aside class="svg-inspector" aria-label="図形のプロパティ">
+              <h2>図形のプロパティ</h2>
+              <p id="svg-inspector-hint">図形を選択すると、ドラッグで移動できます。</p>
+              <div id="svg-properties" class="svg-properties"></div>
+            </aside>
+          </div>
+        </section>
+        <section id="execution-workbench" class="execution-workbench" aria-label="ゲーム実行" hidden></section>
         <div id="welcome" class="welcome">
           <div class="welcome-mark">M</div>
           <h2>Monac Editor</h2>

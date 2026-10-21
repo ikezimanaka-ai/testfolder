@@ -779,6 +779,27 @@ function serializeProject() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function downloadEngineSource(fileName, url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${fileName}: HTTP ${response.status}`);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = Object.assign(document.createElement("a"), {
+      href: objectUrl,
+      download: fileName,
+    });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    status.textContent = `${fileName}をダウンロードしました`;
+    status.style.color = "#86efac";
+  } catch (error) {
+    status.textContent = `${fileName}をダウンロードできません: ${error.message}`;
+    status.style.color = "#fca5a5";
+    addConsole("error", [`${fileName}をダウンロードできません`, error.message]);
+  }
+}
+
 function loadProjectFile(file) {
   const reader = new FileReader();
   reader.onerror = () => addConsole("error", ["プロジェクトファイルを読めませんでした"]);
@@ -1332,6 +1353,8 @@ function init() {
   });
   $("#close-history").addEventListener("click", () => $("#history-dialog").close());
   $("#download-project").addEventListener("click", serializeProject);
+  $("#download-engine").addEventListener("click", () => downloadEngineSource("engine.js", ENGINE_URL));
+  $("#download-ui-objects").addEventListener("click", () => downloadEngineSource("ui-objects.js", UI_URL));
   $("#load-project").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) loadProjectFile(file);

@@ -88,6 +88,8 @@
 
 ## 開発用/学習用の入り口
 
+- [monac/index.html](./monac/index.html): ローカルフォルダーを開いて編集するエディター。JSファイルを右クリックしてCanvas実行タブを開いたり、StudioのJSONをワークスペースへ読み込めます。
+- [studio/studio.html](./studio/studio.html): プロジェクトの作成・実行・JSON入出力に加えて、`engine.js` と `ui-objects.js` を個別にダウンロードできます。
 - [examples/docs/studio.html](./examples/docs/studio.html): 実際にJSファイルを管理しながら試すページ
 - [examples/docs/editor.html](./examples/docs/editor.html): そのままコード編集して実行するページ
 - [examples/docs/tutorials/index.html](./examples/docs/tutorials/index.html): 機能ごとの短い実例
