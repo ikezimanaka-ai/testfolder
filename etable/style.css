@@ -1,0 +1,29 @@
+:root {
+  color-scheme: dark;
+  background: #101819;
+  color: #eef3e9;
+  font-family: "DM Sans", "Noto Sans JP", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+html { min-width: 320px; background: #101819; }
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: radial-gradient(ellipse at 48% 0%, #1c302b 0, #101819 55%);
+}
+
+main { width: 100%; }
+
+canvas {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  outline: none;
+  touch-action: none;
+}
+
+canvas:focus-visible { outline: 2px solid #a8e8c6; outline-offset: -3px; }

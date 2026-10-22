@@ -22,6 +22,10 @@ Millionaire(Beta) : [大富豪](./millionaire/beta/)
 
 Table : [TABLE](./table/)
 
+Table 2 : [TABLE 2](./table2/)
+
+Etable : [ETABLE](./etable/)
+
 Wine : [WINE DECK](./wine/)
 
 Git : [Git](https://testgit.tacz.f5.si)

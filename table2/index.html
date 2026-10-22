@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10191a">
+  <title>TABLE 2 / Game tabletop</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="lobby" class="lobby">
+      <header class="brand">
+        <span class="brand-mark">T</span>
+        <div><p class="eyebrow">SKYWAY SFU · GAME TABLE</p><h1>TABLE 2</h1></div>
+      </header>
+      <div class="lobby-card">
+        <p class="eyebrow">WELCOME TO THE TABLE</p>
+        <h2>みんなで遊ぶテーブル</h2>
+        <p class="muted">大富豪・神経衰弱・ババ抜き・麻雀牌に対応した共有テーブルです。</p>
+        <section class="public-rooms">
+          <div class="panel-title"><div><p class="eyebrow">PUBLIC ROOMS</p><h3>公開中の部屋</h3></div><span class="count-pill" id="public-room-count">0</span></div>
+          <ul id="public-room-list" class="public-room-list"><li class="empty-rooms">公開部屋を確認しています...</li></ul>
+        </section>
+        <form id="join-form" class="join-form">
+          <label>あなたの名前<input id="player-name" maxlength="24" autocomplete="nickname" placeholder="PLAYER" required></label>
+          <label>部屋ID<input id="room-id" maxlength="48" autocomplete="off" placeholder="例: friday-game" required></label>
+          <div class="form-actions">
+            <button class="button secondary" id="create-room" type="button">新しい部屋を作る</button>
+            <button class="button primary" type="submit">部屋に参加 ↗</button>
+          </div>
+        </form>
+    </section>
+
+    <section id="table-app" class="table-app" data-active="false" hidden>
+      <header class="topbar">
+        <a class="brand compact" href="./" aria-label="部屋を退出"><span class="brand-mark">T</span><span><span class="eyebrow">GAME TABLE</span><strong>TABLE 2</strong></span></a>
+        <div class="room-status"><span class="live-dot"></span><span id="connection-state">接続中</span><span class="room-code" id="room-title"></span></div>
+        <div class="header-actions">
+          <button class="button subtle" id="copy-room" type="button">招待リンクをコピー</button>
+          <button class="button danger" id="leave-room" type="button">退出</button>
+        </div>
+      </header>
+      <div class="workspace">
+        <aside class="sidebar left-sidebar">
+          <section class="panel players-panel">
+            <div class="panel-title"><div><p class="eyebrow">AT THE TABLE</p><h2>参加者</h2></div><span class="count-pill" id="player-count">0</span></div>
+            <ul class="player-list" id="player-list"></ul>
+          </section>
+          <section class="panel tools-panel">
+            <div class="panel-title"><div><p class="eyebrow">TABLE TOOLS</p><h2>置く</h2></div></div>
+            <form id="label-form" class="inline-form">
+              <label>ネームプレートの文字<input id="label-text" maxlength="40" placeholder="名前やメモ"></label>
+              <button class="button secondary full" type="submit">＋ ネームプレートを置く</button>
+            </form>
+            <label class="button secondary full upload-button">＋ 画像をアップロード<input id="image-upload" type="file" accept="image/*" hidden></label>
+            <p class="hint">画像はWebPに圧縮して共有します（圧縮後5 MBまで）。</p>
+            <div class="divider"></div>
+            <form id="coin-form" class="inline-form">
+              <label>コインケースから出す枚数<input id="coin-amount" type="number" min="1" max="10000" value="100"></label>
+              <button class="button gold full" type="submit">◉ 自分のコインに追加</button>
+            </form>
+            <p class="wallet-balance">あなたの所持コイン <strong id="wallet-coins">0</strong></p>
+            <form id="coin-place-form" class="inline-form">
+              <label>場に出す枚数（マイナス可）<input id="coin-place-amount" type="number" min="-10000" max="10000" value="10"></label>
+              <button class="button secondary full" type="submit">卓に出す</button>
+            </form>
+            <form id="coin-return-form" class="inline-form coin-return-form">
+              <label>ケースに戻す枚数<input id="coin-return-amount" type="number" min="1" max="10000" value="10"></label>
+              <button class="button subtle full" type="submit">コインケースに戻す</button>
+              <button class="button subtle full" id="return-all-wallet" type="button">所持コインをすべて戻す</button>
+            </form>
+            <div class="bet-panel">
+              <p class="wallet-balance">ゲームの賭け金 <strong id="game-pot-amount">0</strong></p>
+              <form id="bet-form" class="inline-form">
+                <label>賭け金<input id="bet-amount" type="number" min="1" max="10000" value="10"></label>
+                <button class="button gold full" type="submit">賭け金を出す</button>
+              </form>
+              <div id="settle-pot-panel" class="inline-form" hidden>
+                <label>受け取る人<select id="pot-winner"></select></label>
+                <button class="button primary full" id="award-pot" type="button">賭け金を渡す（ホスト）</button>
+                <button class="button subtle full" id="refund-pot" type="button">賭け金を返す（ホスト）</button>
+              </div>
+            </div>
+            <p class="hint">場のコインをダブルクリックすると自分の所持コインに入ります。</p>
+          </section>
+        </aside>
+
+        <section class="table-column">
+          <div class="table-heading">
+            <div><p class="eyebrow">ROOM TABLE</p><h2>共有テーブル</h2></div>
+            <span class="host-badge" id="host-badge">HOST</span>
+          </div>
+          <div class="felt-frame">
+            <div id="felt" class="felt" aria-label="共有テーブル"></div>
+            <svg id="drawing-layer" class="drawing-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="テーブルへの描画"></svg>
+            <div id="empty-table" class="empty-table"><span>✦</span><p>テーブルは空です</p><small>左のツールから置いたり、カードを広げたりできます</small></div>
+          </div>
+          <div class="table-footer">
+            <span>ドラッグで移動・ダブルクリックで回収</span>
+            <button class="button danger" id="clear-table" type="button" hidden>場をすべて片付ける（ホスト）</button>
+            <span>カードはクリックで表裏切替</span>
+          </div>
+          <section id="image-scale-wrap" class="panel image-scale-panel" hidden>
+            <label for="image-scale">選択中の画像サイズ <span id="image-scale-value">100%</span></label>
+            <input id="image-scale" type="range" min="0.4" max="2.5" step="0.05" value="1">
+          </section>
+          <section class="panel drawing-panel">
+            <div class="drawing-tools">
+              <div><p class="eyebrow">LIVE DRAWING</p><strong>テーブルに描く</strong></div>
+              <button class="button secondary" id="pen-mode" type="button" aria-pressed="false">ペン</button>
+              <label class="draw-color-label">色<input id="draw-color" type="color" value="#f4f1d0" aria-label="ペンの色"></label>
+              <label class="draw-width-label">太さ<input id="draw-width" type="range" min="2" max="12" value="5" aria-label="ペンの太さ"></label>
+              <button class="button secondary" id="eraser-mode" type="button" aria-pressed="false">消しゴム</button>
+              <button class="button danger" id="clear-drawing" type="button" hidden>すべて消す（ホスト）</button>
+              <span id="drawing-label" class="drawing-label">通常モード</span>
+            </div>
+          </section>
+          <section class="panel game-panel">
+            <div class="panel-title"><div><p class="eyebrow">GAME MODE</p><h2>ゲーム進行</h2></div></div>
+            <div class="game-start-row">
+              <label>ゲーム<select id="game-mode"><option value="daifugu">大富豪</option><option value="memory">神経衰弱</option><option value="old-maid">ババ抜き</option></select></label>
+              <button class="button primary" id="start-game" type="button">開始</button>
+            </div>
+            <p id="game-status" class="game-status" aria-live="polite">ゲームを選んで開始してください。</p>
+            <div id="game-controls" class="game-controls"></div>
+            <button class="button danger full" id="end-game" type="button" hidden>ゲームを終了する（ホスト）</button>
+          </section>
+          <section class="panel hand-panel">
+            <div class="panel-title"><div><p class="eyebrow">PRIVATE</p><h2>あなたの手札</h2></div><span class="count-pill" id="hand-count">0</span></div>
+            <div class="hand-row" id="hand-row"></div>
+          </section>
+          <section class="panel hand-panel">
+            <div class="panel-title"><div><p class="eyebrow">PRIVATE TILES</p><h2>あなたの麻雀手牌</h2></div><span class="count-pill" id="mahjong-hand-count">0</span></div>
+            <div class="mahjong-hand-row" id="mahjong-hand-row"></div>
+          </section>
+        </section>
+
+        <aside class="sidebar right-sidebar">
+          <section class="panel deck-panel">
+            <div class="panel-title"><div><p class="eyebrow">CARD BOXES</p><h2>トランプの箱</h2></div><button class="icon-button" id="add-deck" type="button" title="箱を追加" aria-label="トランプの箱を追加">＋</button></div>
+            <div id="decks"></div>
+            <button class="button secondary full" id="collect-cards" type="button">全回収して箱に戻す</button>
+            <p class="hint">カードをクリックすると手札に入ります。カード箱を押すと1枚引きます。</p>
+          </section>
+          <section class="panel mahjong-panel">
+            <div class="panel-title"><div><p class="eyebrow">MAHJONG TILES</p><h2>麻雀牌</h2></div></div>
+            <p class="hint">役や和了の判定はありません。各自で牌を引いて、手牌から場へ出せます。</p>
+            <button class="button secondary full" id="create-mahjong-wall" type="button">牌山を作る（136枚）</button>
+            <button class="button gold full" id="draw-mahjong-tile" type="button">牌山から1枚引く</button>
+            <p class="wallet-balance">牌山 <strong id="mahjong-wall-count">0</strong> 枚</p>
+          </section>
+          <section class="panel deal-panel">
+            <div class="panel-title"><div><p class="eyebrow">DEAL CARDS</p><h2>配る</h2></div></div>
+            <label>対象の箱<select id="deal-deck"></select></label>
+            <label>配り方<select id="deal-mode"><option value="even">残りを全員に均等に配る</option><option value="each">1人あたりの枚数を指定</option></select></label>
+            <label>除外するランク<input id="exclude-ranks" placeholder="例: A, K, 7"></label>
+            <label>箱に残す枚数<input id="reserve-count" type="number" min="0" max="52" value="0"></label>
+            <label id="per-player-wrap" hidden>1人あたり<input id="per-player" type="number" min="1" max="52" value="5"></label>
+            <button class="button primary full" id="deal-button" type="button">全員に配る</button>
+          </section>
+          <section class="panel room-options-panel" id="room-options-panel" hidden>
+            <div class="panel-title"><div><p class="eyebrow">ROOM SETTINGS</p><h2>部屋の設定</h2></div></div>
+            <label class="toggle-row"><input id="public-listing" type="checkbox" checked><span>部屋一覧に公開する</span></label>
+            <p class="hint">ホストのみ変更できます。初期状態は公開です。</p>
+          </section>
+          <section class="panel chat-panel">
+            <div class="panel-title"><div><p class="eyebrow">ROOM CHAT</p><h2>メッセージ</h2></div></div>
+            <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+            <form id="chat-form" class="chat-form"><input id="chat-text" maxlength="500" placeholder="メッセージを入力" aria-label="メッセージ" required><button class="button primary" type="submit" aria-label="送信">↑</button></form>
+            <div class="private-chat">
+              <div class="private-chat-heading"><strong>個別チャット</strong><span>参加者全員の通信データには含まれます</span></div>
+              <label for="private-chat-recipient">送信先<select id="private-chat-recipient" aria-label="個別チャットの送信先"></select></label>
+              <ol id="private-chat-log" class="chat-log private-chat-log" aria-live="polite"></ol>
+              <form id="private-chat-form" class="chat-form"><input id="private-chat-text" maxlength="500" placeholder="個別メッセージを入力" aria-label="個別メッセージ" required><button class="button primary" type="submit" aria-label="個別メッセージを送信">↑</button></form>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </section>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+  <script src="./engine.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Scene Engine Example</title>
+    <style>
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        background: #020817;
+        color: #e2e8f0;
+        font-family: system-ui, sans-serif;
+      }
+      canvas {
+        width: min(90vw, 960px);
+        height: auto;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        border-radius: 12px;
+        background: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game" width="800" height="450"></canvas>
+    <script type="module">
+      import { SceneEngine, INPUT } from "./engine.js";
+
+      const canvas = document.getElementById("game");
+      const engine = new SceneEngine({ canvas, width: 800, height: 450, background: "#0f172a" });
+
+      let playerX = 120;
+      let playerY = 220;
+      let mapIndex = 0;
+      const maps = ["forest", "village", "castle"];
+
+      engine.registerScene("title", {
+        onEnter() {
+          console.log("title scene: enter");
+        },
+        onUpdate(dt) {
+          if (INPUT.pressed("Enter") || INPUT.pressed(" ")) {
+            engine.switchScene("settings");
+          }
+        },
+        onRender() {
+          const ctx = engine.ctx;
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(0, 0, engine.width, engine.height);
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "bold 52px sans-serif";
+          ctx.fillText("TITLE", 300, 180);
+          ctx.font = "24px sans-serif";
+          ctx.fillText("ENTER or SPACE to continue", 220, 250);
+        },
+        onExit() {
+          console.log("title scene: exit");
+        },
+      });
+
+      engine.registerScene("settings", {
+        onEnter() {
+          console.log("settings scene: enter");
+        },
+        onUpdate(dt) {
+          if (INPUT.pressed("Escape")) {
+            engine.switchScene("title");
+          }
+          if (INPUT.pressed("Enter")) {
+            engine.switchScene("play");
+          }
+        },
+        onRender() {
+          const ctx = engine.ctx;
+          ctx.fillStyle = "#1e293b";
+          ctx.fillRect(0, 0, engine.width, engine.height);
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "bold 40px sans-serif";
+          ctx.fillText("SETTINGS", 280, 150);
+          ctx.font = "22px sans-serif";
+          ctx.fillText("Sound: ON", 200, 240);
+          ctx.fillText("Graphics: HIGH", 200, 280);
+          ctx.fillText("Press Enter to start the game", 180, 350);
+        },
+      });
+
+      engine.registerScene("play", {
+        onEnter() {
+          playerX = 120;
+          playerY = 220;
+        },
+        onUpdate(dt) {
+          const speed = 220;
+          if (INPUT.onKey("ArrowLeft")) playerX -= speed * dt;
+          if (INPUT.onKey("ArrowRight")) playerX += speed * dt;
+          if (INPUT.onKey("ArrowUp")) playerY -= speed * dt;
+          if (INPUT.onKey("ArrowDown")) playerY += speed * dt;
+
+          playerX = Math.max(30, Math.min(engine.width - 30, playerX));
+          playerY = Math.max(30, Math.min(engine.height - 30, playerY));
+
+          if (INPUT.pressed("m") || INPUT.pressed("M")) {
+            engine.switchScene("map");
+          }
+        },
+        onRender() {
+          const ctx = engine.ctx;
+          ctx.fillStyle = "#172554";
+          ctx.fillRect(0, 0, engine.width, engine.height);
+          ctx.fillStyle = "#facc15";
+          ctx.fillRect(50, 50, 700, 350);
+          ctx.fillStyle = "#38bdf8";
+          ctx.beginPath();
+          ctx.arc(playerX, playerY, 20, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "20px sans-serif";
+          ctx.fillText("PLAY SCENE", 60, 60);
+          ctx.fillText("Press M to open the map", 540, 60);
+        },
+      });
+
+      engine.registerScene("map", {
+        onEnter() {
+          mapIndex = (mapIndex + 1) % maps.length;
+        },
+        onUpdate(dt) {
+          if (INPUT.pressed("Escape")) {
+            engine.switchScene("play");
+          }
+          if (INPUT.pressed("Enter")) {
+            engine.switchScene("settings");
+          }
+        },
+        onRender() {
+          const ctx = engine.ctx;
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(0, 0, engine.width, engine.height);
+          ctx.fillStyle = "#e2e8f0";
+          ctx.font = "bold 42px sans-serif";
+          ctx.fillText("MAP", 340, 120);
+          ctx.font = "24px sans-serif";
+          ctx.fillText(`Current map: ${maps[mapIndex]}`, 220, 220);
+          ctx.fillText("Press ESC to return to play", 230, 300);
+        },
+      });
+
+      engine.start("title");
+    </script>
+  </body>
+</html>
