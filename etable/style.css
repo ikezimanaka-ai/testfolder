@@ -16,12 +16,19 @@ body {
   background: radial-gradient(ellipse at 48% 0%, #1c302b 0, #101819 55%);
 }
 
-main { width: 100%; }
+main {
+  display: grid;
+  width: max(100vw, 960px);
+  min-width: 960px;
+  min-height: 100vh;
+  place-items: center;
+}
 
 canvas {
   display: block;
-  width: 100%;
-  min-height: 100vh;
+  width: min(max(100vw, 960px), 1440px, 160vh);
+  height: auto;
+  aspect-ratio: 5 / 3;
   outline: none;
   touch-action: none;
 }

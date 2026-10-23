@@ -321,6 +321,134 @@ test('mahjong wall has 136 tiles with three red fives and conceals private hands
   assert.equal(state.mahjongTiles.find(item => item.id === tile.id).zone, 'wall');
 });
 
+test('starts a four-player riichi round, conceals hands, and advances draw/discard turns', () => {
+  let state = start();
+  state = addPlayer(state, 'south', 'South');
+  state = addPlayer(state, 'west', 'West');
+  state = addPlayer(state, 'north', 'North');
+  state = TowerEngine.apply(state, { type: 'add-mahjong-wall', actorId: 'host' });
+  state = TowerEngine.apply(state, { type: 'start-mahjong-round', actorId: 'host' });
+
+  assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'hand' && tile.ownerId === 'host').length, 14);
+  for (const id of ['south', 'west', 'north']) {
+    assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'hand' && tile.ownerId === id).length, 13);
+  }
+  assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'wall').length, 83);
+  assert.equal(state.mahjongGame.liveWallRemaining, 69);
+  assert.equal(TowerEngine.publicState(state, 'south').mahjongTiles.find(tile => tile.zone === 'hand' && tile.ownerId === 'host').asset, undefined);
+  const deadWallTile = state.mahjongTiles.find(tile => tile.deadWall);
+  assert.equal(TowerEngine.publicState(state, 'south').mahjongTiles.find(tile => tile.id === deadWallTile.id).asset, undefined);
+
+  const dealerTile = state.mahjongTiles.find(tile => tile.zone === 'hand' && tile.ownerId === 'host');
+  state = TowerEngine.apply(state, { type: 'discard-mahjong-tile', actorId: 'host', tileId: dealerTile.id });
+  assert.equal(state.mahjongGame.currentPlayerId, 'south');
+  assert.equal(state.mahjongGame.phase, 'draw');
+  assert.equal(state.mahjongTiles.find(tile => tile.id === dealerTile.id).zone, 'river');
+
+  state = TowerEngine.apply(state, { type: 'draw-mahjong-tile', actorId: 'south' });
+  assert.equal(state.mahjongGame.phase, 'discard');
+  assert.equal(state.mahjongGame.liveWallRemaining, 68);
+  assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'hand' && tile.ownerId === 'south').length, 14);
+  assert.throws(() => TowerEngine.apply(state, {
+    type: 'draw-mahjong-tile', actorId: 'south'
+  }), /捨て牌を選ぶ番/);
+});
+
+test('calls a valid pon from the latest discard and displays its tiles publicly', () => {
+  let state = start();
+  state = addPlayer(state, 'south', 'South');
+  state = addPlayer(state, 'west', 'West');
+  state = addPlayer(state, 'north', 'North');
+  state = TowerEngine.apply(state, { type: 'add-mahjong-wall', actorId: 'host' });
+  state = TowerEngine.apply(state, { type: 'start-mahjong-round', actorId: 'host' });
+
+  const copies = state.mahjongTiles.filter(tile => tile.suit === 'man' && tile.rank === 1);
+  state.mahjongTiles.forEach(tile => {
+    if (copies.slice(0, 3).includes(tile)) {
+      tile.zone = 'hand';
+      tile.ownerId = 'south';
+      delete tile.deadWall;
+    }
+  });
+  const calledTile = copies[0];
+  calledTile.zone = 'river';
+  calledTile.ownerId = 'host';
+  calledTile.riverIndex = 0;
+  state.mahjongGame.lastDiscardId = calledTile.id;
+  state.mahjongGame.currentPlayerId = 'south';
+  state.mahjongGame.currentIndex = 1;
+  state.mahjongGame.phase = 'draw';
+
+  state = TowerEngine.apply(state, {
+    type: 'call-mahjong-meld',
+    actorId: 'south',
+    kind: 'pon',
+    tileIds: copies.slice(1, 3).map(tile => tile.id),
+    calledTileId: calledTile.id
+  });
+  const meldTiles = state.mahjongTiles.filter(tile => tile.meldId && tile.ownerId === 'south');
+  assert.equal(meldTiles.length, 3);
+  assert.ok(meldTiles.every(tile => tile.zone === 'meld' && tile.meldKind === 'pon'));
+  assert.equal(state.mahjongGame.currentPlayerId, 'south');
+  assert.equal(state.mahjongGame.phase, 'discard');
+  assert.equal(TowerEngine.publicState(state, 'west').mahjongTiles.filter(tile => tile.zone === 'meld').length, 3);
+});
+
+test('calls a daiminkan, takes a replacement draw, and resets all Mahjong tiles', () => {
+  let state = start();
+  state = addPlayer(state, 'south', 'South');
+  state = addPlayer(state, 'west', 'West');
+  state = addPlayer(state, 'north', 'North');
+  state = TowerEngine.apply(state, { type: 'add-mahjong-wall', actorId: 'host' });
+  state = TowerEngine.apply(state, { type: 'start-mahjong-round', actorId: 'host' });
+
+  const copies = state.mahjongTiles.filter(tile => tile.suit === 'pin' && tile.rank === 1);
+  const calledTile = copies[0];
+  calledTile.zone = 'river';
+  calledTile.ownerId = 'host';
+  calledTile.riverIndex = 0;
+  for (const tile of copies.slice(1)) {
+    tile.zone = 'hand';
+    tile.ownerId = 'south';
+    delete tile.deadWall;
+  }
+  delete calledTile.deadWall;
+  state.mahjongTiles.forEach(tile => { delete tile.deadWall; });
+  const wallTiles = state.mahjongTiles.filter(tile => tile.zone === 'wall');
+  wallTiles.slice(-14).forEach(tile => { tile.deadWall = true; });
+  const liveWallBeforeKan = wallTiles.length - 14;
+  state.mahjongGame.liveWallRemaining = liveWallBeforeKan;
+  state.mahjongGame.rinshanRemaining = 4;
+  state.mahjongGame.lastDiscardId = calledTile.id;
+  state.mahjongGame.currentPlayerId = 'south';
+  state.mahjongGame.currentIndex = 1;
+  state.mahjongGame.phase = 'draw';
+
+  state = TowerEngine.apply(state, {
+    type: 'call-mahjong-meld',
+    actorId: 'south',
+    kind: 'kan',
+    tileIds: copies.slice(1).map(tile => tile.id),
+    calledTileId: calledTile.id
+  });
+  assert.equal(state.mahjongGame.phase, 'draw');
+  assert.equal(state.mahjongGame.replacementDrawPending, true);
+
+  state = TowerEngine.apply(state, { type: 'draw-mahjong-tile', actorId: 'south' });
+  assert.equal(state.mahjongGame.phase, 'discard');
+  assert.equal(state.mahjongGame.liveWallRemaining, liveWallBeforeKan - 1);
+  assert.equal(state.mahjongGame.rinshanRemaining, 3);
+  assert.equal(state.mahjongGame.replacementDrawPending, false);
+  assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'wall' && !tile.deadWall).length, liveWallBeforeKan - 1);
+  assert.equal(state.mahjongTiles.filter(tile => tile.zone === 'wall' && tile.deadWall).length, 14);
+
+  state = TowerEngine.apply(state, { type: 'reset-mahjong-round', actorId: 'host' });
+  assert.equal(state.mahjongGame, null);
+  assert.ok(state.mahjongTiles.every(tile => tile.zone === 'wall' && tile.ownerId === null));
+  assert.ok(state.mahjongTiles.every(tile => !tile.deadWall));
+  assert.ok(state.mahjongTiles.every(tile => !('meldId' in tile) && !('riverIndex' in tile)));
+});
+
 test('bet pot moves wallet coins and can be awarded or refunded without changing total value', () => {
   let state = start();
   state = addPlayer(state, 'guest', 'Guest');

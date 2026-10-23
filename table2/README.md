@@ -19,7 +19,7 @@ SkyWay接続には [app.js](./app.js) 冒頭の `API_KEY` と `PASSWORD` をロ�
 - ババ抜きはジョーカー1枚を含むカードを配り、次の人の手札から1枚引きます。同じ数字2枚は自動で捨てられ、最後にジョーカーを持つ人が負けです。
 - 対戦中に入室した人は観戦者です。そのゲームが終わると、次のゲームから参加できます。ホストは途中でゲームを終了できます。
 - 所持コインから賭け金を共通ポットへ預けられます。ゲーム終了後、ホストが勝者へ渡すか、預けた人へ返金できます。次のゲームを始める前に精算してください。
-- 麻雀牌は標準136枚（赤牌3枚を通常の5と置換）です。牌山から引き、自分の手牌から場へ出せます。役・和了・手番の自動判定はありません。牌画像は既存の `../pai-images/pai-images/` を参照します。
+- 麻雀は4人のリーチ麻雀を基準にし、136枚（赤牌3枚を通常の5と置換）を使います。親14枚・子13枚で開始し、ツモ／打牌、上家からのチー、他家からのポン／大明槓と嶺上牌を扱います。河と副露は全員に公開し、手牌の牌姿は本人にだけ公開します。役・和了、点数計算、リーチ、ロン、鳴きの優先権と局進行は自動化していないため、必要な裁定はプレイヤー間で行ってください。一般的なルールの参考は[麻雀のルール（Wikipedia）](https://ja.wikipedia.org/wiki/%E9%BA%BB%E9%9B%80%E3%81%AE%E3%83%AB%E3%83%BC%E3%83%AB)です。ローカルルールには差があります。牌画像は既存の `../pai-images/pai-images/` を参照します。
 
 ## テスト
 
@@ -27,4 +27,5 @@ SkyWay接続には [app.js](./app.js) 冒頭の `API_KEY` と `PASSWORD` をロ�
 
 ```sh
 node --test table2/engine.test.cjs table2/game-modes.test.mjs millionaire/beta/game-engine.test.mjs
+node --experimental-default-type=module --test editor/engine/ui-objects.test.mjs editor/engine/scene-engine/scene-manager.test.mjs
 ```

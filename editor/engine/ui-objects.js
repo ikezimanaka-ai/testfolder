@@ -498,3 +498,63 @@ export class SpriteAnimationObject extends ImageObject {
     }
   }
 }
+
+export class CanvasScrollArea {
+  constructor({ x = 0, y = 0, width = 0, height = 0, contentHeight = 0, offset = 0 } = {}) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.contentHeight = contentHeight;
+    this.offset = offset;
+  }
+  configure({ x = this.x, y = this.y, width = this.width, height = this.height, contentHeight = this.contentHeight } = {}) {
+    this.x = x;
+    this.y = y;
+    this.width = Math.max(0, width);
+    this.height = Math.max(0, height);
+    this.contentHeight = Math.max(0, contentHeight);
+    this.offset = Math.max(0, Math.min(this.offset, this.maxOffset));
+    return this;
+  }
+  get maxOffset() {
+    return Math.max(0, this.contentHeight - this.height);
+  }
+  contains(point) {
+    return point.x >= this.x && point.x <= this.x + this.width &&
+      point.y >= this.y && point.y <= this.y + this.height;
+  }
+  scrollBy(amount) {
+    const next = Math.max(0, Math.min(this.maxOffset, this.offset + amount));
+    if (next === this.offset) return false;
+    this.offset = next;
+    return true;
+  }
+  handleWheel(event, point, multiplier = 1) {
+    if (!this.contains(point) || this.maxOffset === 0) return false;
+    const changed = this.scrollBy(event.deltaY * multiplier);
+    if (changed) event.preventDefault();
+    return changed;
+  }
+  draw(context, renderContent) {
+    context.save();
+    context.beginPath();
+    context.rect(this.x, this.y, this.width, this.height);
+    context.clip();
+    context.translate(0, -this.offset);
+    try {
+      renderContent();
+    } finally {
+      context.restore();
+    }
+    if (this.maxOffset > 0) {
+      const trackX = this.x + this.width - 4;
+      const thumbHeight = Math.max(18, this.height * this.height / this.contentHeight);
+      const thumbY = this.y + (this.height - thumbHeight) * this.offset / this.maxOffset;
+      context.fillStyle = "#ffffff24";
+      context.fillRect(trackX, this.y, 3, this.height);
+      context.fillStyle = "#a8e8c6aa";
+      context.fillRect(trackX, thumbY, 3, thumbHeight);
+    }
+  }
+}

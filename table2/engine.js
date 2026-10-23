@@ -18,6 +18,7 @@
       cards: [],
       decks: [],
       mahjongTiles: [],
+      mahjongGame: null,
       game: null,
       gamePot: { amount: 0, contributions: {}, locked: false },
       strokes: [],
@@ -456,10 +457,37 @@
         break;
       }
       case 'draw-mahjong-tile': {
-        const wallTile = next.mahjongTiles.find(tile => tile.zone === 'wall');
+        assertPlayer(next, action.actorId);
+        if (next.mahjongGame && next.mahjongGame.phase !== 'draw') {
+          throw new Error('捨て牌を選ぶ番です。先に牌を引けません。');
+        }
+        if (next.mahjongGame) {
+          if (next.mahjongGame.currentPlayerId !== action.actorId) throw new Error('麻雀の順番ではありません。');
+          if (next.mahjongGame.liveWallRemaining < 1) throw new Error('王牌を除く牌山に牌がありません。');
+          if (next.mahjongGame.replacementDrawPending && next.mahjongGame.rinshanRemaining < 1) {
+            throw new Error('嶺上牌がありません。');
+          }
+        }
+        const game = next.mahjongGame;
+        const wallTile = next.mahjongTiles.find(tile =>
+          tile.zone === 'wall' && Boolean(tile.deadWall) === Boolean(game?.replacementDrawPending)
+        );
         if (!wallTile) throw new Error('牌山に牌がありません。');
         wallTile.zone = 'hand';
         wallTile.ownerId = action.actorId;
+        delete wallTile.deadWall;
+        if (game) {
+          game.liveWallRemaining -= 1;
+          if (game.replacementDrawPending) {
+            game.rinshanRemaining -= 1;
+            game.replacementDrawPending = false;
+            const shiftedTile = next.mahjongTiles.find(tile => tile.zone === 'wall' && !tile.deadWall);
+            if (!shiftedTile) throw new Error('嶺上牌を補充する牌がありません。');
+            shiftedTile.deadWall = true;
+          }
+          game.phase = 'discard';
+          game.message = `${next.players.find(player => player.id === action.actorId)?.name || 'PLAYER'}の番です。捨て牌を選んでください。`;
+        }
         break;
       }
       case 'play-mahjong-tile': {
@@ -470,10 +498,140 @@
         tile.y = clamp(action.y ?? 50);
         break;
       }
+      case 'discard-mahjong-tile': {
+        const game = next.mahjongGame;
+        if (game) assertPlayer(next, action.actorId);
+        if (game && (game.currentPlayerId !== action.actorId || game.phase !== 'discard')) {
+          throw new Error('今はこの牌を捨てられません。');
+        }
+        const tile = next.mahjongTiles.find(item => item.id === action.tileId && item.zone === 'hand' && item.ownerId === action.actorId);
+        if (!tile) throw new Error('自分の手牌から捨てる牌を選んでください。');
+        tile.zone = 'river';
+        tile.riverIndex = next.mahjongTiles.filter(item => item.zone === 'river' && item.ownerId === action.actorId).length;
+        tile.discardedBy = action.actorId;
+        if (game) {
+          game.lastDiscardId = tile.id;
+          game.currentIndex = (game.currentIndex + 1) % game.playerIds.length;
+          game.currentPlayerId = game.playerIds[game.currentIndex];
+          game.phase = 'draw';
+          game.turnNumber += 1;
+          game.message = `${next.players.find(player => player.id === game.currentPlayerId)?.name || 'PLAYER'}の番です。牌を引いてください。`;
+        }
+        break;
+      }
+      case 'call-mahjong-meld': {
+        const game = next.mahjongGame;
+        const kind = action.kind;
+        const handTileCount = kind === 'kan' ? 3 : 2;
+        const handTiles = Array.isArray(action.tileIds)
+          ? action.tileIds.map(id => next.mahjongTiles.find(tile => tile.id === id && tile.zone === 'hand' && tile.ownerId === action.actorId))
+          : [];
+        const calledTile = next.mahjongTiles.find(tile =>
+          tile.id === action.calledTileId && tile.zone === 'river' && tile.id === game?.lastDiscardId
+        );
+        if (!game || game.phase !== 'draw' || !calledTile || calledTile.ownerId === action.actorId) {
+          throw new Error('鳴ける捨て牌がありません。');
+        }
+        if (!game.playerIds.includes(action.actorId)) throw new Error('麻雀の参加者ではありません。');
+        if (!['chi', 'pon', 'kan'].includes(kind) || handTiles.length !== handTileCount ||
+          handTiles.some(tile => !tile) || new Set(action.tileIds).size !== handTileCount) {
+          throw new Error('副露する牌を正しく選択してください。');
+        }
+        if (kind === 'kan' && (game.liveWallRemaining < 1 || game.rinshanRemaining < 1)) {
+          throw new Error('嶺上牌を引けないためカンできません。');
+        }
+        if (kind === 'chi') {
+          const nextSeat = (game.playerIds.indexOf(calledTile.ownerId) + 1) % game.playerIds.length;
+          const ranks = [...handTiles, calledTile].map(tile => tile.rank).sort((a, b) => a - b);
+          if (game.playerIds[nextSeat] !== action.actorId || handTiles.some(tile => tile.suit !== calledTile.suit) ||
+            calledTile.suit === 'ji' || ranks[1] !== ranks[0] + 1 || ranks[2] !== ranks[1] + 1) {
+            throw new Error('チーは上家の数牌から連続する3枚を選んでください。');
+          }
+        } else if (handTiles.some(tile => tile.suit !== calledTile.suit || tile.rank !== calledTile.rank)) {
+          throw new Error('ポン・カンは同じ種類・数字の牌を選んでください。');
+        }
+        const meldId = makeId();
+        for (const tile of [...handTiles, calledTile]) {
+          tile.zone = 'meld';
+          tile.ownerId = action.actorId;
+          delete tile.deadWall;
+          delete tile.riverIndex;
+          delete tile.discardedBy;
+          tile.meldId = meldId;
+          tile.meldKind = kind;
+          tile.called = tile.id === calledTile.id;
+          tile.fromOwnerId = calledTile.ownerId;
+        }
+        game.currentIndex = game.playerIds.indexOf(action.actorId);
+        game.currentPlayerId = action.actorId;
+        game.phase = kind === 'kan' ? 'draw' : 'discard';
+        game.replacementDrawPending = kind === 'kan';
+        game.message = kind === 'kan'
+          ? 'カンしました。補充牌を引いてください。'
+          : `${kind === 'chi' ? 'チー' : 'ポン'}しました。捨て牌を選んでください。`;
+        break;
+      }
+      case 'start-mahjong-round': {
+        assertHost(next, action.actorId);
+        if (next.game?.status === 'playing') throw new Error('別のゲームが進行中です。');
+        const players = next.players.filter(player => !player.spectator);
+        if (players.length !== 4 || !players.some(player => player.id === next.hostId)) {
+          throw new Error('四人麻雀はホストを含む参加者4人で開始してください。');
+        }
+        if (next.mahjongTiles.length !== 136 || next.mahjongTiles.some(tile => tile.zone !== 'wall')) {
+          throw new Error('牌山を作り直し、全牌を山に戻してから開始してください。');
+        }
+        const playerIds = players.map(player => player.id);
+        const dealerId = next.hostId;
+        for (const [index, tile] of next.mahjongTiles.entries()) {
+          const playerIndex = index < 52 ? index % 4 : playerIds.indexOf(dealerId);
+          if (index < 52 || index === 52) {
+            tile.zone = 'hand';
+            tile.ownerId = playerIds[playerIndex];
+          }
+        }
+        next.mahjongTiles.filter(tile => tile.zone === 'wall').slice(-14).forEach(tile => {
+          tile.deadWall = true;
+        });
+        next.mahjongGame = {
+          playerIds,
+          dealerId,
+          currentIndex: playerIds.indexOf(dealerId),
+          currentPlayerId: dealerId,
+          phase: 'discard',
+          liveWallRemaining: 69,
+          rinshanRemaining: 4,
+          replacementDrawPending: false,
+          turnNumber: 0,
+          lastDiscardId: null,
+          message: `${next.players.find(player => player.id === dealerId)?.name || '親'}の番です。親は14枚から1枚捨ててください。`
+        };
+        break;
+      }
+      case 'reset-mahjong-round': {
+        assertHost(next, action.actorId);
+        for (const tile of next.mahjongTiles) {
+          tile.zone = 'wall';
+          tile.ownerId = null;
+          tile.x = 50;
+          tile.y = 50;
+          delete tile.deadWall;
+          delete tile.riverIndex;
+          delete tile.discardedBy;
+          delete tile.meldId;
+          delete tile.meldKind;
+          delete tile.called;
+          delete tile.fromOwnerId;
+        }
+        next.mahjongTiles = shuffled(next.mahjongTiles);
+        next.mahjongGame = null;
+        break;
+      }
       case 'add-mahjong-wall': {
         assertHost(next, action.actorId);
         if (next.mahjongTiles.some(tile => tile.zone !== 'wall')) throw new Error('手牌や場の牌がある間は牌山を作り直せません。');
         next.mahjongTiles = createMahjongWall();
+        next.mahjongGame = null;
         break;
       }
       case 'add-wallet-coins': {
@@ -673,13 +831,21 @@
         }
         next.cards = next.decks.flatMap(deck => shuffled(next.cards.filter(card => card.deckId === deck.id)));
         next.mahjongTiles.forEach(tile => {
-          if (tile.zone === 'table') {
+          if (tile.zone !== 'wall') {
             tile.zone = 'wall';
             tile.ownerId = null;
             tile.x = 50;
             tile.y = 50;
+            delete tile.riverIndex;
+            delete tile.discardedBy;
+            delete tile.meldId;
+            delete tile.meldKind;
+            delete tile.called;
+            delete tile.fromOwnerId;
           }
+          delete tile.deadWall;
         });
+        next.mahjongGame = null;
         next.strokes = [];
         break;
       default:
@@ -698,8 +864,8 @@
         : card
     ));
     result.mahjongTiles = result.mahjongTiles.map(tile => (
-      tile.zone === 'hand' && tile.ownerId !== viewerId
-        ? { id: tile.id, zone: 'hand', ownerId: tile.ownerId }
+      tile.deadWall || (tile.zone === 'hand' && tile.ownerId !== viewerId)
+        ? { id: tile.id, zone: tile.zone, ownerId: tile.ownerId }
         : tile
     ));
     if (result.game?.mode === 'memory') {
