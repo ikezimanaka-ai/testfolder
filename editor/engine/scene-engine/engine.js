@@ -63,7 +63,12 @@ class Input {
     }
     this._bound = true;
     this._target = target;
+    const isTextEntry = (event) => {
+      const element = event.target;
+      return Boolean(element && (element.isContentEditable || element.closest?.("input, textarea, select, [contenteditable=true], [role=textbox]")));
+    };
     target.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229 || isTextEntry(event)) return;
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " ", "Spacebar"].includes(event.key) || event.code === "Space") {
         event.preventDefault();
       }
@@ -77,9 +82,11 @@ class Input {
     target.addEventListener("keyup", (event) => {
       this.keys.delete(event.key);
       this.keys.delete(event.code);
+      if (event.isComposing || event.keyCode === 229 || isTextEntry(event)) return;
       this.justReleased.add(event.key);
       this.justReleased.add(event.code);
     });
+    target.addEventListener("compositionstart", () => this.clear());
     target.addEventListener("blur", () => this.clear());
     return this;
   }

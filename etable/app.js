@@ -16,6 +16,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const PACKET_CHARS = 10000;
 const ROOM_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,48}$/;
 const canvas = document.querySelector('#etable');
+const imeInput = document.querySelector('#ime-input');
 const fileInput = document.querySelector('#image-file');
 const tableEngine = globalThis.TowerEngine;
 const engine = new SceneEngine({ canvas, width: 1000, height: 600, fps: 30, background: '#101819' });
@@ -284,7 +285,10 @@ function textFieldKeyDown(event) {
 }
 
 function submitField(key) {
-  if (key === 'name') selection.focusedField = 'room';
+  if (key === 'name') {
+    selection.focusedField = 'room';
+    focusImeField('room');
+  }
   else if (key === 'room') {
     selection.focusedField = null;
     void connectRoom(false);
@@ -1723,6 +1727,7 @@ function activateTarget(target) {
   if (!target || target.disabled) return;
   if (target.type === 'field') {
     selection.focusedField = target.key;
+    focusImeField(target.key);
     safeRender();
   } else if (target.type === 'button') {
     target.action?.();
@@ -1731,6 +1736,65 @@ function activateTarget(target) {
     handleTableObjectClick(target.object);
   }
 }
+
+function focusImeField(key) {
+  imeInput.value = fields[key] || '';
+  imeInput.dataset.field = key;
+  const target = layoutTargets.find(item => item.type === 'field' && item.key === key);
+  const rect = canvas.getBoundingClientRect();
+  if (target && rect.width && rect.height) {
+    const scaleX = rect.width / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    imeInput.style.left = `${rect.left + target.x * scaleX}px`;
+    imeInput.style.top = `${rect.top + target.y * scaleY}px`;
+    imeInput.style.width = `${Math.max(24, target.width * scaleX)}px`;
+    imeInput.style.height = `${Math.max(24, target.height * scaleY)}px`;
+    imeInput.style.fontSize = `${Math.max(16, 12 * scaleY)}px`;
+  }
+  imeInput.focus({ preventScroll: true });
+  imeInput.setSelectionRange(imeInput.value.length, imeInput.value.length);
+}
+
+imeInput.addEventListener('input', () => {
+  const key = imeInput.dataset.field;
+  if (!key || selection.focusedField !== key) return;
+  const target = layoutTargets.find(item => item.type === 'field' && item.key === key);
+  const maxLength = target?.maxLength || 500;
+  fields[key] = imeInput.value.slice(0, maxLength);
+  if (imeInput.value !== fields[key]) imeInput.value = fields[key];
+  safeRender();
+});
+
+imeInput.addEventListener('pointerdown', () => {
+  const key = imeInput.dataset.field;
+  if (key) selection.focusedField = key;
+});
+
+function clearTextFieldFocus() {
+  if (selection.focusedField !== null) {
+    selection.focusedField = null;
+    imeInput.blur();
+    safeRender();
+  }
+}
+
+document.addEventListener('pointerdown', event => {
+  if (event.target !== canvas && event.target !== imeInput) clearTextFieldFocus();
+}, true);
+
+imeInput.addEventListener('keydown', event => {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    submitField(imeInput.dataset.field);
+    imeInput.blur();
+    safeRender();
+  } else if (event.key === 'Escape') {
+    selection.focusedField = null;
+    imeInput.blur();
+    safeRender();
+  }
+});
 
 function handleTableObjectClick(object) {
   if (selection.drawingMode !== 'none') return;
@@ -1772,6 +1836,8 @@ canvas.addEventListener('pointerdown', event => {
   if (event.button !== 0) return;
   canvas.focus();
   const point = getPointerPoint(event);
+  const clickedTarget = hitTest(point);
+  if (toastMessage || selection.confirmAction || clickedTarget?.type !== 'field') clearTextFieldFocus();
   if (toastMessage) {
     const bounds = noticeBounds(engine.width);
     if (point.x < bounds.x || point.x > bounds.x + bounds.width ||
@@ -1796,7 +1862,7 @@ canvas.addEventListener('pointerdown', event => {
     if (confirmTarget?.overlay === 'confirm') activateTarget(confirmTarget);
     return;
   }
-  const target = hitTest(point);
+  const target = clickedTarget;
   const table = findTableBounds(point);
   if (selection.drawingMode !== 'none' && table && state) {
     canvas.setPointerCapture(event.pointerId);
@@ -1911,7 +1977,10 @@ canvas.addEventListener('keydown', event => {
     event.preventDefault();
     focusedTargetIndex = (focusedTargetIndex + (event.shiftKey ? -1 : 1) + targets.length) % targets.length;
     const focused = targets[focusedTargetIndex];
-    if (focused.type === 'field') selection.focusedField = focused.key;
+    if (focused.type === 'field') {
+      selection.focusedField = focused.key;
+      focusImeField(focused.key);
+    }
     else selection.focusedField = null;
     safeRender();
   } else if ((event.key === 'Enter' || event.key === ' ') && focusedTargetIndex >= 0) {

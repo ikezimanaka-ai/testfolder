@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engine Input Check</title>
+  <style>
+    :root { color-scheme: dark; background: #101819; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; display: grid; place-items: center; padding: 12px; }
+    main { width: min(100%, 960px); }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 760; outline: none; touch-action: none; }
+    .native-input {
+      position: fixed; z-index: 2; margin: 0; border: 0; border-radius: 7px;
+      padding: 0 12px; opacity: .01; color: transparent; caret-color: transparent;
+      background: transparent; outline: 0; resize: none; overflow: hidden;
+      font: 16px/1.4 system-ui, sans-serif; pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <canvas id="check-canvas" width="960" height="760" tabindex="0" aria-label="エンジンの日本語入力確認画面"></canvas>
+    <input id="single-input" class="native-input" aria-label="1行入力" autocomplete="off" spellcheck="false">
+    <textarea id="multi-input" class="native-input" aria-label="複数行入力" autocomplete="off" spellcheck="false"></textarea>
+  </main>
+  <script type="module">
+    import { INPUT, SceneEngine } from '../editor/engine/scene-engine/engine.js';
+
+    const canvas = document.querySelector('#check-canvas');
+    const singleInput = document.querySelector('#single-input');
+    const multiInput = document.querySelector('#multi-input');
+    const engine = new SceneEngine({ canvas, width: 960, height: 760, fps: 30, background: '#101819' });
+    const controls = {
+      single: { element: singleInput, x: 54, y: 172, width: 852, height: 54, label: '1行入力' },
+      multi: { element: multiInput, x: 54, y: 282, width: 852, height: 100, label: '複数行入力' }
+    };
+    const logs = [];
+    let activeField = null;
+    const keySample = 'a';
+
+    function addLog(type, detail = {}) {
+      logs.push(`${new Date().toLocaleTimeString('ja-JP', { hour12: false })} ${type} ${JSON.stringify(detail)}`);
+      if (logs.length > 100) logs.shift();
+    }
+
+    function positionNativeInputs() {
+      const rect = canvas.getBoundingClientRect();
+      const sx = rect.width / engine.width;
+      const sy = rect.height / engine.height;
+      for (const field of Object.values(controls)) {
+        Object.assign(field.element.style, {
+          left: `${rect.left + field.x * sx}px`,
+          top: `${rect.top + field.y * sy}px`,
+          width: `${field.width * sx}px`,
+          height: `${field.height * sy}px`
+        });
+      }
+    }
+
+    function focusField(name) {
+      const field = controls[name];
+      activeField = name;
+      field.element.focus({ preventScroll: true });
+      addLog('field.focus-request', { field: name });
+      engine.render();
+    }
+
+    function blurField() {
+      if (!activeField) return;
+      const previous = activeField;
+      activeField = null;
+      controls[previous].element.blur();
+      addLog('field.blur-request', { field: previous });
+      engine.render();
+    }
+
+    for (const [name, field] of Object.entries(controls)) {
+      const element = field.element;
+      element.addEventListener('pointerdown', () => {
+        activeField = name;
+        element.focus({ preventScroll: true });
+        engine.render();
+      });
+      element.addEventListener('focus', () => {
+        activeField = name;
+        addLog('focus', { field: name });
+        engine.render();
+      });
+      element.addEventListener('blur', () => {
+        if (activeField === name) activeField = null;
+        addLog('blur', { field: name });
+        engine.render();
+      });
+      for (const type of ['compositionstart', 'compositionupdate', 'compositionend', 'beforeinput', 'input', 'change']) {
+        element.addEventListener(type, event => {
+          const detail = { field: name, value: element.value };
+          if ('data' in event && event.data !== null) detail.data = event.data;
+          if ('inputType' in event) detail.inputType = event.inputType;
+          if ('isComposing' in event) detail.isComposing = event.isComposing;
+          addLog(type, detail);
+          engine.render();
+        });
+      }
+      for (const type of ['keydown', 'keyup']) {
+        element.addEventListener(type, event => {
+          const detail = {
+            field: name,
+            key: event.key,
+            keyCode: event.keyCode,
+            isComposing: event.isComposing,
+            engineKeys: [...INPUT.keys]
+          };
+          addLog(type, detail);
+          engine.render();
+        });
+      }
+    }
+
+    function pointerToCanvas(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * engine.width / rect.width,
+        y: (event.clientY - rect.top) * engine.height / rect.height
+      };
+    }
+
+    canvas.addEventListener('pointerdown', event => {
+      const point = pointerToCanvas(event);
+      canvas.focus({ preventScroll: true });
+      if (activeField) blurField();
+      if (point.x >= 54 && point.x <= 906 && point.y >= 172 && point.y <= 226) {
+        focusField('single');
+      } else if (point.x >= 54 && point.x <= 906 && point.y >= 282 && point.y <= 382) {
+        focusField('multi');
+      } else if (point.x >= 800 && point.x <= 906 && point.y >= 492 && point.y <= 522) {
+        logs.length = 0;
+        addLog('log.cleared');
+      } else if (point.x >= 54 && point.x <= 906 && point.y >= 426 && point.y <= 486) {
+        addLog('engine-key-area.focus', { hint: '英字キーを押して、押下中の状態を見ます' });
+      } else {
+        addLog('canvas.pointerdown', { x: Math.round(point.x), y: Math.round(point.y) });
+      }
+      engine.render();
+    });
+
+    document.addEventListener('pointerdown', event => {
+      if (event.target !== canvas && event.target !== singleInput && event.target !== multiInput) blurField();
+    }, true);
+
+    window.addEventListener('resize', positionNativeInputs);
+    window.addEventListener('scroll', positionNativeInputs, true);
+
+    function drawPanel(ctx, x, y, width, height, title) {
+      ctx.fillStyle = '#172321';
+      ctx.strokeStyle = '#354740';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x, y, width, height, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#a8e8c6';
+      ctx.font = '700 17px system-ui, sans-serif';
+      ctx.fillText(title, x + 18, y + 28);
+    }
+
+    function drawField(ctx, field, name) {
+      ctx.fillStyle = '#dce7df';
+      ctx.font = '600 14px system-ui, sans-serif';
+      ctx.fillText(field.label, field.x, field.y - 12);
+      ctx.fillStyle = '#111b1b';
+      ctx.strokeStyle = activeField === name ? '#8ed8b5' : '#52675d';
+      ctx.lineWidth = activeField === name ? 2 : 1;
+      ctx.beginPath();
+      ctx.roundRect(field.x, field.y, field.width, field.height, 7);
+      ctx.fill();
+      ctx.stroke();
+      const value = field.element.value;
+      ctx.fillStyle = value ? '#eef3e9' : '#74857d';
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      const lines = name === 'multi' ? value.split('\n').slice(0, 4) : [value || (name === 'single' ? 'ここに日本語を入力' : '複数行の日本語入力を試せます')];
+      lines.forEach((line, index) => ctx.fillText(line, field.x + 12, field.y + 12 + index * 22, field.width - 24));
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    engine.registerScene('input-check', {
+      onRender() {
+        const ctx = engine.ctx;
+        drawPanel(ctx, 28, 24, 904, 712, 'ENGINE INPUT CHECK');
+        ctx.fillStyle = '#b7c8bf';
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.fillText('変換中・確定・入力欄外クリックの挙動を、エンジンの画面とログで確認します。', 54, 86);
+        ctx.fillText('IME はネイティブ入力で受け取り、表示とログは engine.js が描画します。', 54, 110);
+        drawField(ctx, controls.single, 'single');
+        drawField(ctx, controls.multi, 'multi');
+
+        ctx.fillStyle = '#16221f';
+        ctx.strokeStyle = '#52675d';
+        ctx.beginPath();
+        ctx.roundRect(54, 426, 852, 60, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#a8e8c6';
+        ctx.font = '600 14px system-ui, sans-serif';
+        ctx.fillText('通常キーのテスト: この枠をクリックして英字キーを押す', 68, 452);
+        ctx.fillStyle = '#dce7df';
+        ctx.font = '12px ui-monospace, monospace';
+        ctx.fillText(`a の押下状態: ${INPUT.onKey(keySample) ? 'DOWN' : 'up'}　pressed: ${INPUT.pressed(keySample)}`, 68, 473);
+
+        ctx.fillStyle = '#dce7df';
+        ctx.font = '700 14px system-ui, sans-serif';
+        ctx.fillText('イベントログ', 54, 518);
+        ctx.fillStyle = '#19342b';
+        ctx.beginPath();
+        ctx.roundRect(800, 492, 106, 32, 6);
+        ctx.fill();
+        ctx.fillStyle = '#a8e8c6';
+        ctx.font = '600 12px system-ui, sans-serif';
+        ctx.fillText('ログ消去', 825, 513);
+        ctx.fillStyle = '#20342c';
+        ctx.beginPath();
+        ctx.roundRect(54, 530, 852, 176, 7);
+        ctx.fill();
+        ctx.fillStyle = '#bfe5d0';
+        ctx.font = '12px ui-monospace, monospace';
+        const visibleLogs = logs.slice(-8);
+        visibleLogs.forEach((line, index) => ctx.fillText(line, 66, 552 + index * 19, 828));
+
+        ctx.fillStyle = '#e1bb67';
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.fillText(`現在の入力フォーカス: ${activeField || 'なし'}　|　エンジンが追跡中のキー: ${[...INPUT.keys].join(', ') || 'なし'}`, 54, 720, 850);
+      },
+      onUpdate() {
+        positionNativeInputs();
+      }
+    });
+
+    positionNativeInputs();
+    addLog('ready', { engine: 'SceneEngine', tests: ['text-input', 'composition', 'engine-key-state', 'blur-outside'] });
+    engine.start('input-check');
+  </script>
+</body>
+</html>
