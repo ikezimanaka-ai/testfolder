@@ -1405,3 +1405,7 @@ addEventListener('beforeunload', () => {
 });
 
 void openLobby();
+
+//../table/に行く。
+
+window.location = new URL('../etable2/', location.href).href;

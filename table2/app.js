@@ -1734,3 +1734,5 @@ addEventListener('beforeunload', () => {
 });
 
 void openLobby();
+
+window.location = new URL('../table/', location.href).href;

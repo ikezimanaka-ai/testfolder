@@ -1,0 +1,25 @@
+{
+  "title": "テスト用クイズ 1",
+  "questions": [
+    {
+      "type": "option1",
+      "prompt": "日本の首都はどこですか？",
+      "options": ["東京", "大阪", "京都", "福岡"],
+      "answer": ["東京"],
+      "explanation": "**東京**は日本の首都です。"
+    },
+    {
+      "type": "option2",
+      "prompt": "日本の四季に含まれるものをすべて選んでください。",
+      "options": ["春", "夏", "秋", "冬", "梅雨"],
+      "answer": ["春", "夏", "秋", "冬"],
+      "explanation": "日本の四季は「春・夏・秋・冬」です。"
+    },
+    {
+      "type": "Tinput",
+      "prompt": "「HTML」の略称を答えてください。",
+      "answer": ["HyperText Markup Language", "hypertext markup language"],
+      "explanation": "HTMLは HyperText Markup Language の略です。"
+    }
+  ]
+}

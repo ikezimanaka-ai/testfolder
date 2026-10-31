@@ -119,6 +119,13 @@ class Deal {
     return target;
   }
 
+  DELETE(){
+    //子要素をすべて削除
+    while (this.element.firstChild) {
+      this.element.removeChild(this.element.firstChild);
+    }
+  }
+
   // セレクタ自体を改変
   MODIFY(selector, options = {}) {
     return this.SET(selector, options);

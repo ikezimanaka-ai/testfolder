@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>クイズ作成 | DomDealer Quiz</title>
+  <link rel="stylesheet" href="quiz.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./index.html">DomDealer Quiz</a>
+    <a class="button secondary" href="./index.html">プレイ画面へ</a>
+  </header>
+  <main class="shell editor-shell">
+    <section class="panel">
+      <p class="eyebrow">QUIZ EDITOR</p>
+      <h1>クイズを作成</h1>
+      <p class="muted">問題文と解説はMarkdown記法で入力できます。画像は <code>![説明](画像URL)</code> で追加します。</p>
+      <div class="editor-toolbar"><label class="button secondary file-button">JSONを読み込む<input id="import-json" type="file" accept=".json,application/json"></label><button id="add-question" class="button secondary" type="button">＋ 問題を追加</button><button id="download-json" class="button" type="button">JSONをダウンロード</button></div>
+      <label class="field"><span>クイズタイトル</span><input id="quiz-title" type="text" value="新しいクイズ"></label>
+      <div id="editor-questions"></div>
+      <p id="editor-status" class="status" role="status"></p>
+    </section>
+  </main>
+  <template id="question-template">
+    <fieldset class="question-editor">
+      <legend>問題 <span class="question-number"></span></legend>
+      <div class="editor-grid">
+        <label class="field wide"><span>問題文 (Markdown対応)</span><textarea class="prompt-input" rows="5" placeholder="問題文を入力。画像: ![説明](./image.png)"></textarea></label>
+        <label class="field"><span>回答方法</span><select class="type-input"><option value="option1">単一選択 (Option1)</option><option value="option2">複数選択 (Option2)</option><option value="option3">順序選択 (Option3)</option><option value="Tinput">テキスト入力</option><option value="Ninput">数値入力</option></select></label>
+        <label class="field options-field"><span>選択肢 (1行に1つ)</span><textarea class="options-input" rows="4" placeholder="選択肢A&#10;選択肢B&#10;選択肢C"></textarea></label>
+        <label class="field"><span class="answer-label">正解 (1行に1つ)</span><textarea class="answer-input" rows="4" placeholder="正解を入力"></textarea><small class="answer-help">複数回答は1行ずつ。順序選択では正解順に並べます。</small></label>
+        <label class="field wide"><span>解説 (Markdown対応)</span><textarea class="explanation-input" rows="3" placeholder="解説や参考画像を入力"></textarea></label>
+        <div class="field wide preview-field"><span>プレビュー</span><div class="markdown-preview"></div></div>
+      </div>
+      <button class="remove-question button danger secondary" type="button">この問題を削除</button>
+    </fieldset>
+  </template>
+  <script src="./domDeal.js"></script>
+  <script src="./quiz.js"></script>
+</body>
+</html>

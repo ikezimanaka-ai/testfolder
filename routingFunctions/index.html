@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131f">
+  <title>GRAPH DODGER — 関数よけ</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header class="brand"><span class="brand-mark">ƒ</span><div><p class="eyebrow">FUNCTION SURVIVAL</p><h1>GRAPH DODGER</h1></div></header>
+    <div class="canvas-frame">
+      <canvas id="game" width="1000" height="625" tabindex="0" aria-label="関数のグラフを避けるゲーム"></canvas>
+    </div>
+    <footer><span>移動 <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd>　自由移動 <kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd></span><span>ジャンプ <kbd>Space</kbd> 長押しで高く</span></footer>
+  </main>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

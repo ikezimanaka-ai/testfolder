@@ -3,9 +3,26 @@
   "date": "2026/7/27",
   "content": [
     {
-      "type": "undefined",
-      "sentence": "quiz1_sentence",
-      "answers": "a1"
+      "type": "option1",
+      "sentence": "quiz1_sentence\nYou choose 'a1'.",
+      "options": ["a1", "a2", "a3", "a4"],
+      "answer": ["a1"]
+    },
+    {
+      "type": "option2",
+      "sentence": "quiz2_sentence\nYou choose 'a1' and 'a2'.",
+      "options": ["a1", "a2", "a3", "a4"],
+      "answer": ["a1","a2"]
+    },
+    {
+      "type": "Tinput",
+      "sentence": "quiz3_sentence\nYou entered 'a1'.",
+      "answer": ["a1"]
+    },
+    {
+      "type": "Ninput",
+      "sentence": "quiz4_sentence\nYou entered '1'.",
+      "answer": ["1"]
     }
   ]
 }

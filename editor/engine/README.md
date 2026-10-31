@@ -16,7 +16,7 @@
 - [engine.js](./engine.js): エンジン本体。`Engine`, `Display`, `GameObject`, `INPUT`, `Shapes` の基本を使う。
 - [ui-objects.js](./ui-objects.js): `TextObject`, `ButtonObject`, `BarObject`, `SliderObject` 等のUI部品。
 - [examples/docs/docs.html](./examples/docs/docs.html): 使い方を確認する参照ページ。
-- [examples/docs/tests.html](./examples/docs/tests.html): 図形やUIのテストページ。
+- [docs/tests.html](./docs/tests.html): コードを編集してEngine機能を試すプレイグラウンド。
 - [examples/docs/studio.html](./examples/docs/studio.html): 作成時の実務用ページ。
 
 > ここでは「内部実装の説明」よりも、「どのファイルを使うか」と「何をインポートするか」を見ます。

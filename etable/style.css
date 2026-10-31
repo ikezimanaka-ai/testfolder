@@ -34,20 +34,3 @@ canvas {
 }
 
 canvas:focus-visible { outline: 2px solid #a8e8c6; outline-offset: -3px; }
-/* Native text control lets the browser deliver IME composition to the canvas UI. */
-#ime-input {
-  position: fixed;
-  z-index: 10;
-  margin: 0;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 7px;
-  outline: 0;
-  opacity: 0.01;
-  color: transparent;
-  caret-color: transparent;
-  background: transparent;
-  pointer-events: auto;
-  resize: none;
-  overflow: hidden;
-}

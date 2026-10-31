@@ -328,7 +328,9 @@ export class TextInputObject extends GameObject {
     input.setAttribute("aria-label", this.label);
     Object.assign(input.style, {
       position: "fixed", left: "-10000px", top: "0", width: "1px", height: "1px",
-      opacity: "0", outline: "none", border: "0", padding: "0", pointerEvents: "none",
+      opacity: "0.01", outline: "none", border: "0", padding: "0", pointerEvents: "none",
+      color: "transparent", caretColor: "transparent", background: "transparent",
+      boxSizing: "border-box", zIndex: "1",
     });
     document.body.append(input);
     this.inputElement = input;
@@ -336,8 +338,7 @@ export class TextInputObject extends GameObject {
       const point = this.engine.pointerToLogical(event);
       if (this.engine._hitTest(point) === this) {
         event.preventDefault();
-        input.style.left = `${event.clientX}px`;
-        input.style.top = `${event.clientY}px`;
+        this._positionInput();
         input.focus({ preventScroll: true });
       } else this.blur();
     };
@@ -362,7 +363,28 @@ export class TextInputObject extends GameObject {
     });
     input.addEventListener("change", () => this.onChange?.call(this, this.value, this));
   }
-  focus() { this.inputElement?.focus({ preventScroll: true }); return this; }
+  _positionInput() {
+    const input = this.inputElement;
+    const canvas = this.engine?.canvas;
+    if (!input || !canvas) return this;
+    const rect = canvas.getBoundingClientRect();
+    const logicalWidth = this.engine.logicalWidth || rect.width;
+    const logicalHeight = this.engine.logicalHeight || rect.height;
+    const scale = Math.min(rect.width / logicalWidth, rect.height / logicalHeight);
+    if (!Number.isFinite(scale) || scale <= 0) return this;
+    const offsetX = (rect.width - logicalWidth * scale) / 2;
+    const offsetY = (rect.height - logicalHeight * scale) / 2;
+    const x = (this.display?.x ?? 0) + this.x;
+    const y = (this.display?.y ?? 0) + this.y;
+    input.style.left = `${rect.left + offsetX + x * scale}px`;
+    input.style.top = `${rect.top + offsetY + y * scale}px`;
+    input.style.width = `${this.width * Math.abs(this.scaleX ?? 1) * scale}px`;
+    input.style.height = `${this.height * Math.abs(this.scaleY ?? 1) * scale}px`;
+    input.style.fontSize = `${Math.max(12, this.fontSize * scale)}px`;
+    input.style.paddingLeft = `${8 * scale}px`;
+    return this;
+  }
+  focus() { this._positionInput(); this.inputElement?.focus({ preventScroll: true }); return this; }
   blur() {
     this.inputElement?.blur();
     if (this.focused) {
@@ -373,6 +395,7 @@ export class TextInputObject extends GameObject {
   }
   draw(context) {
     const focused = this.focused || document.activeElement === this.inputElement;
+    if (focused) this._positionInput();
     if (this.opacity <= 0 || this._removed || this.element && !this.element.isConnected) {
       this.blur();
     }

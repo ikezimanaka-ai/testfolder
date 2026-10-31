@@ -6,7 +6,8 @@ import {
   nowInSec
 } from 'https://esm.sh/@skyway-sdk/room@2.5.1?bundle';
 import { SceneEngine } from '../editor/engine/scene-engine/engine.js';
-import { CanvasScrollArea } from '../editor/engine/ui-objects.js';
+import { Engine as CanvasObjectEngine, Display } from '../editor/engine/engine.js';
+import { TextInputObject, NumberInputObject, CanvasScrollArea } from '../editor/engine/ui-objects.js';
 import { applyDaifuguAction, createDaifuguGame } from '../table2/game-modes.js';
 import { extendedApply, legalReversiMoves, publicPokerState } from './extra-games.js';
 
@@ -16,10 +17,24 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const PACKET_CHARS = 10000;
 const ROOM_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,48}$/;
 const canvas = document.querySelector('#etable');
-const imeInput = document.querySelector('#ime-input');
 const fileInput = document.querySelector('#image-file');
 const tableEngine = globalThis.TowerEngine;
 const engine = new SceneEngine({ canvas, width: 1000, height: 600, fps: 30, background: '#101819' });
+const inputEngineHost = document.createElement('div');
+const inputEngineCanvas = document.createElement('canvas');
+Object.assign(inputEngineHost.style, { position: 'fixed', left: '-1200px', top: '0', width: '1000px', height: '600px', overflow: 'hidden' });
+Object.assign(inputEngineCanvas.style, { display: 'block', width: '1000px', height: '600px', aspectRatio: 'auto' });
+inputEngineHost.append(inputEngineCanvas);
+document.body.append(inputEngineHost);
+const inputEngine = new CanvasObjectEngine(inputEngineCanvas, 30, 1000, 600);
+inputEngine._resizeObserver.disconnect();
+inputEngine.canvas = canvas;
+inputEngine.pointerToLogical = event => {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (event.clientX - rect.left) * 1000 / rect.width, y: (event.clientY - rect.top) * 600 / rect.height };
+};
+const inputDisplay = inputEngine.newDisplay(new Display('etable-inputs', 1000, 600));
+const textInputObjects = new Map();
 const handScrollArea = new CanvasScrollArea();
 const gameHandScrollArea = new CanvasScrollArea();
 const RIGHT_CONTENT = { x: 594, y: 160, scale: 0.94 };
@@ -226,7 +241,113 @@ function drawField(ctx, label, key, x, y, width, options = {}) {
     ctx.fillStyle = '#a8e8c6';
     ctx.fillRect(x + cursorX, y + 16, 1, 16);
   }
-  addTarget({ x, y: y + 7, width, height: 36, type: 'field', key, maxLength, inputType: type, label });
+  const target = { x, y: y + 7, width, height: 36, type: 'field', key, maxLength, inputType: type, label };
+  addTarget(target);
+  syncTextInputObject(target, placeholder);
+}
+
+function syncTextInputObject(target, placeholder = '') {
+  let inputObject = textInputObjects.get(target.key);
+  if (!inputObject) {
+    const InputObjectClass = target.inputType === 'number' ? NumberInputObject : TextInputObject;
+    inputObject = new InputObjectClass({
+      x: target.x, y: target.y, width: target.width, height: target.height,
+      value: fields[target.key] || '', placeholder, label: target.label,
+      maxLength: target.maxLength, fontSize: 12, fontFamily: 'sans-serif',
+      color: '#eef3e9', background: '#111b1b', border: '#3a4c47', focusedBorder: '#8ed8b5'
+    });
+    const start = inputObject.onStart.bind(inputObject);
+    inputObject.onStart = function startTextInput() {
+      start();
+      const input = this.inputElement;
+      input.tabIndex = -1;
+      input.inputMode = target.inputType === 'number' ? 'decimal' : 'text';
+      input.addEventListener('compositionstart', () => { this.composing = true; });
+      input.addEventListener('compositionend', () => { this.composing = false; });
+      input.addEventListener('keydown', event => {
+        if (event.isComposing || event.keyCode === 229) return;
+        if (event.key === 'Tab') {
+          const targets = layoutTargets.filter(item => item.type === 'field' || (item.type === 'button' && !item.disabled));
+          if (!targets.length) return;
+          event.preventDefault();
+          const currentIndex = targets.findIndex(item => item.type === 'field' && item.key === target.key);
+          focusedTargetIndex = ((currentIndex >= 0 ? currentIndex : focusedTargetIndex) + (event.shiftKey ? -1 : 1) + targets.length) % targets.length;
+          const focused = targets[focusedTargetIndex];
+          if (focused.type === 'field') {
+            selection.focusedField = focused.key;
+            focusTextInputObject(focused.key);
+          } else {
+            selection.focusedField = null;
+            this.blur();
+            canvas.focus();
+          }
+          safeRender();
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          submitField(target.key);
+          this.blur();
+        } else if (event.key === 'Escape') {
+          selection.focusedField = null;
+          this.blur();
+          safeRender();
+        }
+      });
+      input.addEventListener('blur', () => {
+        if (selection.focusedField === target.key) {
+          selection.focusedField = null;
+          safeRender();
+        }
+      });
+      this._inputReady = true;
+    };
+    inputObject.onInput = value => {
+      const currentTarget = layoutTargets.find(item => item.type === 'field' && item.key === target.key);
+      const maxLength = currentTarget?.maxLength || target.maxLength || 500;
+      let nextValue = value.slice(0, maxLength);
+      if (currentTarget?.inputType === 'number' && !/^[0-9-]*$/.test(nextValue)) {
+        nextValue = fields[target.key] || '';
+        inputObject.inputElement.value = nextValue;
+        inputObject.value = nextValue;
+      }
+      fields[target.key] = nextValue;
+      safeRender();
+    };
+    inputDisplay.addObject(inputObject);
+    textInputObjects.set(target.key, inputObject);
+    inputObject.onStart(inputEngine);
+    inputObject._initialized = true;
+  }
+
+  inputObject.x = target.x;
+  inputObject.y = target.y;
+  inputObject.width = target.width;
+  inputObject.height = target.height;
+  inputObject.maxLength = target.maxLength;
+  inputObject.label = target.label;
+  inputObject.placeholder = placeholder;
+  inputObject.opacity = 1;
+  inputObject.collisionShapes = [{ type: 'rect', x: 0, y: 0, width: target.width, height: target.height }];
+  inputObject.updateElement();
+  if (inputObject.inputElement && target.inputType !== 'number') {
+    inputObject.inputElement.maxLength = target.maxLength > 0 ? target.maxLength : 524288;
+  }
+  if (!inputObject.composing) {
+    inputObject.value = fields[target.key] || '';
+    if (inputObject.inputElement && document.activeElement !== inputObject.inputElement && inputObject.inputElement.value !== inputObject.value) {
+      inputObject.inputElement.value = inputObject.value;
+    }
+  }
+}
+
+function drawTextInputObjects(ctx) {
+  const visibleKeys = new Set(layoutTargets.filter(target => target.type === 'field').map(target => target.key));
+  for (const [key, inputObject] of textInputObjects) {
+    const visible = visibleKeys.has(key) && !toastMessage && !selection.confirmAction;
+    inputObject.opacity = visible ? 1 : 0;
+    inputObject.updateElement();
+    if (visible) inputObject.draw(ctx);
+    else if (inputObject.focused) inputObject.blur();
+  }
 }
 
 function drawPill(ctx, label, x, y, width, value, tone = '#a8e8c6') {
@@ -287,7 +408,7 @@ function textFieldKeyDown(event) {
 function submitField(key) {
   if (key === 'name') {
     selection.focusedField = 'room';
-    focusImeField('room');
+    focusTextInputObject('room');
   }
   else if (key === 'room') {
     selection.focusedField = null;
@@ -330,7 +451,7 @@ function lobbyRender(engineInstance) {
     drawButton(ctx, '参加', cardX + cardWidth - 64, rowY + 3, 48, 24, () => {
       fields.room = entry.roomId;
       if (fields.name.trim()) void connectRoom(false);
-      else selection.focusedField = 'name';
+      else { selection.focusedField = 'name'; focusTextInputObject('name'); }
     });
   });
 
@@ -1727,7 +1848,7 @@ function activateTarget(target) {
   if (!target || target.disabled) return;
   if (target.type === 'field') {
     selection.focusedField = target.key;
-    focusImeField(target.key);
+    focusTextInputObject(target.key);
     safeRender();
   } else if (target.type === 'button') {
     target.action?.();
@@ -1737,64 +1858,36 @@ function activateTarget(target) {
   }
 }
 
-function focusImeField(key) {
-  imeInput.value = fields[key] || '';
-  imeInput.dataset.field = key;
+function focusTextInputObject(key) {
+  const inputObject = textInputObjects.get(key);
   const target = layoutTargets.find(item => item.type === 'field' && item.key === key);
+  if (!inputObject?.inputElement) return;
+  const input = inputObject.inputElement;
   const rect = canvas.getBoundingClientRect();
-  if (target && rect.width && rect.height) {
-    const scaleX = rect.width / canvas.width;
-    const scaleY = rect.height / canvas.height;
-    imeInput.style.left = `${rect.left + target.x * scaleX}px`;
-    imeInput.style.top = `${rect.top + target.y * scaleY}px`;
-    imeInput.style.width = `${Math.max(24, target.width * scaleX)}px`;
-    imeInput.style.height = `${Math.max(24, target.height * scaleY)}px`;
-    imeInput.style.fontSize = `${Math.max(16, 12 * scaleY)}px`;
+  const alreadyFocused = document.activeElement === input;
+  if (!alreadyFocused && target && rect.width && rect.height) {
+    const scaleX = rect.width / engine.width;
+    const scaleY = rect.height / engine.height;
+    input.style.left = `${rect.left + (target.x + 10) * scaleX}px`;
+    input.style.top = `${rect.top + (target.y + 8) * scaleY}px`;
   }
-  imeInput.focus({ preventScroll: true });
-  imeInput.setSelectionRange(imeInput.value.length, imeInput.value.length);
+  inputObject.focus();
+  if (!alreadyFocused) input.setSelectionRange(input.value.length, input.value.length);
 }
-
-imeInput.addEventListener('input', () => {
-  const key = imeInput.dataset.field;
-  if (!key || selection.focusedField !== key) return;
-  const target = layoutTargets.find(item => item.type === 'field' && item.key === key);
-  const maxLength = target?.maxLength || 500;
-  fields[key] = imeInput.value.slice(0, maxLength);
-  if (imeInput.value !== fields[key]) imeInput.value = fields[key];
-  safeRender();
-});
-
-imeInput.addEventListener('pointerdown', () => {
-  const key = imeInput.dataset.field;
-  if (key) selection.focusedField = key;
-});
 
 function clearTextFieldFocus() {
   if (selection.focusedField !== null) {
+    const focusedObject = textInputObjects.get(selection.focusedField);
     selection.focusedField = null;
-    imeInput.blur();
+    focusedObject?.blur();
     safeRender();
   }
 }
 
 document.addEventListener('pointerdown', event => {
-  if (event.target !== canvas && event.target !== imeInput) clearTextFieldFocus();
+  const isInputControl = [...textInputObjects.values()].some(inputObject => inputObject.inputElement === event.target);
+  if (event.target !== canvas && !isInputControl) clearTextFieldFocus();
 }, true);
-
-imeInput.addEventListener('keydown', event => {
-  if (event.isComposing || event.keyCode === 229) return;
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    submitField(imeInput.dataset.field);
-    imeInput.blur();
-    safeRender();
-  } else if (event.key === 'Escape') {
-    selection.focusedField = null;
-    imeInput.blur();
-    safeRender();
-  }
-});
 
 function handleTableObjectClick(object) {
   if (selection.drawingMode !== 'none') return;
@@ -1834,9 +1927,9 @@ function handleTableObjectClick(object) {
 
 canvas.addEventListener('pointerdown', event => {
   if (event.button !== 0) return;
-  canvas.focus();
   const point = getPointerPoint(event);
   const clickedTarget = hitTest(point);
+  if (!toastMessage && !selection.confirmAction && clickedTarget?.type !== 'field') canvas.focus();
   if (toastMessage || selection.confirmAction || clickedTarget?.type !== 'field') clearTextFieldFocus();
   if (toastMessage) {
     const bounds = noticeBounds(engine.width);
@@ -1979,7 +2072,7 @@ canvas.addEventListener('keydown', event => {
     const focused = targets[focusedTargetIndex];
     if (focused.type === 'field') {
       selection.focusedField = focused.key;
-      focusImeField(focused.key);
+      focusTextInputObject(focused.key);
     }
     else selection.focusedField = null;
     safeRender();
@@ -2436,8 +2529,8 @@ async function connectRoom(create) {
   if (connecting) return;
   const name = fields.name.trim().slice(0, 24);
   const desiredRoom = fields.room.trim().toLowerCase();
-  if (!name) { selection.focusedField = 'name'; notify('あなたの名前を入力してください。'); return; }
-  if (!ROOM_NAME_PATTERN.test(desiredRoom)) { selection.focusedField = 'room'; notify('部屋IDは英数字、ハイフン、アンダースコアで1〜48文字にしてください。'); return; }
+  if (!name) { selection.focusedField = 'name'; notify('あなたの名前を入力してください。'); focusTextInputObject('name'); return; }
+  if (!ROOM_NAME_PATTERN.test(desiredRoom)) { selection.focusedField = 'room'; notify('部屋IDは英数字、ハイフン、アンダースコアで1〜48文字にしてください。'); focusTextInputObject('room'); return; }
   if (!API_KEY.trim() || !PASSWORD.trim()) {
     connectionStatus = 'SkyWayトークン未設定';
     notify('SkyWay接続は未設定です。安全なサーバー側トークン連携が必要です。', 7000);
@@ -2634,14 +2727,20 @@ engine.registerScene('lobby', {
     setupCanvasSize();
     void openLobby();
   },
-  onRender: lobbyRender
+  onRender(engineInstance) {
+    lobbyRender(engineInstance);
+    drawTextInputObjects(engineInstance.ctx);
+  }
 });
 engine.registerScene('table', {
   onEnter() {
     selection.drawingMode = 'none';
     setupCanvasSize();
   },
-  onRender: drawTableScene
+  onRender(engineInstance) {
+    drawTableScene(engineInstance);
+    drawTextInputObjects(engineInstance.ctx);
+  }
 });
 engine.start('lobby');
 
@@ -2649,3 +2748,6 @@ window.addEventListener('beforeunload', () => {
   if (host) removePublicRoomAnnouncement();
   if (host && (room || dataRoom)) void cleanupConnection(true);
 });
+
+
+window.location = new URL('../etable2/', location.href).href;

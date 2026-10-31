@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DomDealer Quiz</title>
+  <link rel="stylesheet" href="quiz.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./index.html">DomDealer Quiz</a>
+    <a class="button secondary" href="./create.html">クイズを作成</a>
+  </header>
+  <main id="app" class="shell">
+    <section class="panel welcome">
+      <p class="eyebrow">QUIZ PLAYER</p>
+      <h1>クイズを読み込む</h1>
+      <p class="muted">クイズJSON、または複数のクイズをまとめた一覧JSONを指定してください。</p>
+      <form id="url-form" class="load-row">
+        <label for="quiz-url">クイズまたは一覧JSONのURL</label>
+        <div class="inline"><input id="quiz-url" type="url" placeholder="https://example.com/quiz-list.json"><button class="button" type="submit">URLから読み込む</button></div>
+      </form>
+      <label class="file-picker" for="local-files"><span class="file-icon">＋</span><span><strong>ローカルファイルを選択</strong><small>一覧JSONと参照先クイズを一緒に選べます</small></span><input id="local-files" type="file" accept=".json,application/json" multiple></label>
+      <p id="load-status" class="status" role="status"></p>
+    </section>
+    <section id="quiz" class="panel hidden" aria-live="polite"></section>
+  </main>
+  <script src="./domDeal.js"></script>
+  <script src="./quiz.js"></script>
+</body>
+</html>

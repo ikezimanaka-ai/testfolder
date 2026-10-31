@@ -2,7 +2,7 @@
 
 Sans-fight : [Go to bad time](./sans/)
 
-qz : [qi](./qs/)
+qz : [qi](./qs/index.html)
 
 Card Table : [FELT](./card/)
 

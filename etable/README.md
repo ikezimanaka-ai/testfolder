@@ -1,5 +1,7 @@
 # ETABLE
 
+ETABLE2 の移植版と Scene Engine / Canvas Object Engine / UI Objects の機能・APIガイドは [`../etable2/README.md`](../etable2/README.md) を参照してください。UI 部品の操作デモは [`../etable2/playground.html`](../etable2/playground.html) で確認できます。
+
 `etable/` is a Canvas-only edition of [TABLE 2](../table2/). The lobby, room, table, controls, game boards, and chat are drawn by the Scene Engine on a landscape 5:3 Canvas with a 1000 × 600 logical layout and a 1800 × 1080 backing resolution for sharper rendering. The shared table stays visible on the left while operation, game, card, mahjong, and chat controls occupy tabs in the right-side panel. The hand view shows cards in a scrollable grid; the Daifugu and old-maid game hands are also scrollable. Canvas scroll behavior is provided by `editor/engine/ui-objects.js`. Notifications do not expire; dismiss them with the close button or by clicking outside the notice. Confirmation dialogs can be cancelled with an outside click. Pointer input operates the table and keyboard input edits focused Canvas fields. Image selection uses a hidden file input to open the browser's native picker.
 
 ## Run

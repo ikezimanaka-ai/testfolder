@@ -1,0 +1,8 @@
+{
+  "title": "テスト用まとめクイズ",
+  "questions": [
+    "./test-quiz-1.json",
+    "./test-quiz-2.json",
+    "./test-quiz-3.json"
+  ]
+}
