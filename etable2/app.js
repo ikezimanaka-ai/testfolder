@@ -2536,7 +2536,7 @@ function maybeAutoDrawMahjong() {
       if (mahjongAutoDrawKey !== key) return;
       mahjongAutoDrawKey = '';
       maybeAutoDrawMahjong();
-    }, 6000);
+    }, 500);
   }, 0);
 }
 
@@ -2556,7 +2556,7 @@ function maybeScheduleMahjongClaims() {
     if (state?.mahjongGame?.claimWindowId !== game.claimWindowId) return;
     try { state = applyRoomAction({ type:'mahjong-resolve-claims', actorId:state.hostId }); broadcastState(); }
     catch (error) { notify(`麻雀の鳴き判定に失敗しました: ${error.message}`); }
-  }, 1300);
+  }, 130);
 }
 
 function prepareCpuRoster(source, requiredSeats = 2) {
