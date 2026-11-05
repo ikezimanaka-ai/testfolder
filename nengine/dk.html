@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Control</title>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #111;
+            display: flex;
+        }
+
+        #screen-container {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+
+        #screen {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            user-select: none;
+            background: #111;
+        }
+
+        #toolbar {
+            position: fixed;
+            right: 10px;
+            top: 10px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        #toolbar button {
+            background: rgba(0, 0, 0, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font: 12px/1.4 system-ui, sans-serif;
+        }
+
+        #status {
+            position: fixed;
+            left: 10px;
+            top: 10px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.72);
+            color: #fff;
+            font: 12px/1.4 system-ui, sans-serif;
+            z-index: 1001;
+            pointer-events: none;
+        }
+
+        #input-log {
+            position: fixed;
+            left: 10px;
+            bottom: 10px;
+            max-width: min(520px, calc(100vw - 20px));
+            padding: 8px 10px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.78);
+            color: #fff;
+            font: 12px/1.5 ui-monospace, monospace;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            z-index: 1001;
+            pointer-events: none;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="screen-container">
+        <img id="screen" draggable="false">
+    </div>
+    <div id="status">browser connected / waiting for helper</div>
+    <div id="input-log" aria-live="polite">キー入力ログ: 画面上にマウスを置いてキーを押してください</div>
+    <div id="toolbar"><button id="fullscreen-button" type="button">全画面</button></div>
+
+    <script>
+        const socket = io("/control");
+
+        const screen = document.getElementById("screen");
+        const screenContainer = document.getElementById("screen-container");
+        const toolbar = document.getElementById("toolbar");
+        const status = document.getElementById("status");
+        const inputLog = document.getElementById("input-log");
+        const fullscreenButton = document.getElementById("fullscreen-button");
+
+        let captureInput = false;
+        const recentKeys = [];
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseDirty = false;
+
+        socket.on("connect", () => {
+            console.log("connected", socket.id);
+        });
+
+        socket.on("frame", (data) => {
+            screen.src = "data:image/jpeg;base64," + data.image;
+            status.textContent = `helper connected / frames ${data.count} / ${data.size} bytes`;
+        });
+
+        socket.on("status", (data) => {
+            const helper = data.helperConnected ? "helper connected" : "waiting for helper";
+            status.textContent = `${helper} / frames ${data.frames} / ${data.lastFrameBytes} bytes`;
+        });
+
+        function send(data) {
+            if (socket.connected)
+                socket.emit("input", data);
+        }
+
+        function logKeyInput(event) {
+            const entry = `${event.type}: key=${JSON.stringify(event.key)} code=${event.code || "(empty)"}`;
+            recentKeys.push(entry);
+            if (recentKeys.length > 8) recentKeys.shift();
+            inputLog.textContent = recentKeys.join("\n");
+            console.info("Keyboard input", {
+                type: event.type,
+                key: event.key,
+                code: event.code,
+                repeat: event.repeat
+            });
+        }
+
+        function getScreenImageRect() {
+            return screen.getBoundingClientRect();
+        }
+
+        function updateMouse(e) {
+            const imageRect = getScreenImageRect();
+
+            mouseX = Math.max(0, Math.min(1, (e.clientX - imageRect.left) / imageRect.width));
+            mouseY = Math.max(0, Math.min(1, (e.clientY - imageRect.top) / imageRect.height));
+
+            mouseDirty = true;
+        }
+
+        function mouseLoop() {
+
+            if (captureInput && mouseDirty) {
+
+                send({
+                    type: "mousemove",
+                    x: mouseX,
+                    y: mouseY
+                });
+
+                mouseDirty = false;
+            }
+
+            requestAnimationFrame(mouseLoop);
+        }
+
+        requestAnimationFrame(mouseLoop);
+
+        screen.addEventListener("pointerenter", () => {
+            captureInput = true;
+        });
+
+        screen.addEventListener("pointerleave", () => {
+            captureInput = false;
+        });
+
+        toolbar.addEventListener("pointerenter", () => {
+            captureInput = false;
+        });
+
+        screen.addEventListener("pointermove", updateMouse);
+
+        screen.addEventListener("pointerdown", (e) => {
+
+            if (!captureInput) return;
+
+            e.preventDefault();
+
+            updateMouse(e);
+
+            send({
+                type: "mousedown",
+                button: e.button,
+                x: mouseX,
+                y: mouseY
+            });
+
+        });
+
+        screen.addEventListener("pointerup", (e) => {
+
+            if (!captureInput) return;
+
+            e.preventDefault();
+
+            updateMouse(e);
+
+            send({
+                type: "mouseup",
+                button: e.button,
+                x: mouseX,
+                y: mouseY
+            });
+
+        });
+
+        screen.addEventListener("wheel", (e) => {
+
+            if (!captureInput) return;
+
+            e.preventDefault();
+
+            updateMouse(e);
+
+            send({
+                type: "wheel",
+                x: mouseX,
+                y: mouseY,
+                dx: e.deltaX,
+                dy: e.deltaY
+            });
+
+        }, { passive: false });
+
+        document.addEventListener("keydown", (e) => {
+
+            if (!captureInput) return;
+
+            e.preventDefault();
+            logKeyInput(e);
+
+            send({
+                type: "keydown",
+                key: e.key,
+                code: e.code,
+                ctrl: e.ctrlKey,
+                shift: e.shiftKey,
+                alt: e.altKey,
+                meta: e.metaKey,
+                repeat: e.repeat
+            });
+
+        });
+
+        document.addEventListener("keyup", (e) => {
+
+            if (!captureInput) return;
+
+            e.preventDefault();
+            logKeyInput(e);
+
+            send({
+                type: "keyup",
+                key: e.key,
+                code: e.code,
+                ctrl: e.ctrlKey,
+                shift: e.shiftKey,
+                alt: e.altKey,
+                meta: e.metaKey
+            });
+
+        });
+
+        window.addEventListener("blur", () => {
+
+            send({
+                type: "release_all"
+            });
+
+        });
+
+        fullscreenButton.addEventListener("click", async () => {
+            try {
+                if (document.fullscreenElement === screenContainer) {
+                    await document.exitFullscreen();
+                } else {
+                    await screenContainer.requestFullscreen();
+                }
+            } catch (error) {
+                console.warn("fullscreen error", error);
+            }
+        });
+
+        document.addEventListener("fullscreenchange", () => {
+            fullscreenButton.textContent = document.fullscreenElement === screenContainer ? "全画面を閉じる" : "全画面";
+        });
+
+        screen.addEventListener("contextmenu", e => e.preventDefault());
+        screen.addEventListener("dragstart", e => e.preventDefault());
+        screen.addEventListener("dblclick", e => e.preventDefault());
+
+    </script>
+
+</body>
+
+</html>
