@@ -86,6 +86,8 @@
             font: 12px/1.5 ui-monospace, monospace;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
+            max-height: 40vh;
+            overflow-y: auto;
             z-index: 1001;
             pointer-events: none;
         }
@@ -98,12 +100,15 @@
     <div id="screen-container">
         <img id="screen" draggable="false">
     </div>
-    <div id="status">browser connected / waiting for helper</div>
-    <div id="input-log" aria-live="polite">キー入力ログ: 画面上にマウスを置いてキーを押してください</div>
+    <div id="status">connecting...</div>
+    <div id="input-log" aria-live="polite">キー入力 / consoleログ</div>
     <div id="toolbar"><button id="fullscreen-button" type="button">全画面</button></div>
 
     <script>
-        const socket = io("/control");
+        const controlServer = location.hostname.endsWith(".github.io")
+            ? "https://play.tacz.f5.si/control"
+            : "/control";
+        const socket = io(controlServer);
 
         const screen = document.getElementById("screen");
         const screenContainer = document.getElementById("screen-container");
@@ -113,41 +118,69 @@
         const fullscreenButton = document.getElementById("fullscreen-button");
 
         let captureInput = false;
-        const recentKeys = [];
+        const recentLogs = [];
+        const consoleMethods = ["log", "info", "warn", "error", "debug"];
+        const originalConsole = Object.fromEntries(
+            consoleMethods.map((method) => [method, console[method].bind(console)])
+        );
         let mouseX = 0;
         let mouseY = 0;
         let mouseDirty = false;
 
-        socket.on("connect", () => {
-            console.log("connected", socket.id);
-        });
+        function appendLog(source, message) {
+            recentLogs.push(`${new Date().toLocaleTimeString()} [${source}] ${message}`);
+            if (recentLogs.length > 12) recentLogs.shift();
+            inputLog.textContent = `キー入力 / consoleログ\n${recentLogs.join("\n")}`;
+            inputLog.scrollTop = inputLog.scrollHeight;
+        }
 
-        socket.on("frame", (data) => {
-            screen.src = "data:image/jpeg;base64," + data.image;
-            status.textContent = `helper connected / frames ${data.count} / ${data.size} bytes`;
-        });
+        function formatLogValue(value) {
+            if (typeof value === "string") return value;
+            if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
+            try {
+                const serialized = JSON.stringify(value);
+                return serialized === undefined ? String(value) : serialized;
+            } catch {
+                return String(value);
+            }
+        }
 
-        socket.on("status", (data) => {
-            const helper = data.helperConnected ? "helper connected" : "waiting for helper";
-            status.textContent = `${helper} / frames ${data.frames} / ${data.lastFrameBytes} bytes`;
-        });
+        for (const method of consoleMethods) {
+            console[method] = (...args) => {
+                originalConsole[method](...args);
+                appendLog(method, args.map(formatLogValue).join(" "));
+            };
+        }
+
+        if (socket) {
+            socket.on("connect", () => {
+                console.log("connected", socket.id);
+            });
+
+            socket.on("connect_error", (error) => {
+                status.textContent = `Socket.IO connection failed: ${error.message}`;
+                console.error("Socket.IO connection error", error);
+            });
+
+            socket.on("frame", (data) => {
+                screen.src = "data:image/jpeg;base64," + data.image;
+                status.textContent = `helper connected / frames ${data.count} / ${data.size} bytes`;
+            });
+
+            socket.on("status", (data) => {
+                const helper = data.helperConnected ? "helper connected" : "waiting for helper";
+                status.textContent = `${helper} / frames ${data.frames} / ${data.lastFrameBytes} bytes`;
+            });
+        }
 
         function send(data) {
-            if (socket.connected)
+            if (socket?.connected)
                 socket.emit("input", data);
         }
 
         function logKeyInput(event) {
             const entry = `${event.type}: key=${JSON.stringify(event.key)} code=${event.code || "(empty)"}`;
-            recentKeys.push(entry);
-            if (recentKeys.length > 8) recentKeys.shift();
-            inputLog.textContent = recentKeys.join("\n");
-            console.info("Keyboard input", {
-                type: event.type,
-                key: event.key,
-                code: event.code,
-                repeat: event.repeat
-            });
+            appendLog("key", entry);
         }
 
         function getScreenImageRect() {
