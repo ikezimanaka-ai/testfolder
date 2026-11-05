@@ -108,7 +108,7 @@
         const controlServer = location.hostname.endsWith(".github.io")
             ? "https://play.tacz.f5.si/control"
             : "/control";
-        const socket = io(controlServer);
+        const socket = io(controlServer, { transports: ["websocket"] });
 
         const screen = document.getElementById("screen");
         const screenContainer = document.getElementById("screen-container");
