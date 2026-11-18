@@ -12,7 +12,7 @@ window.addEventListener("unhandledrejection", (event) => console.error("[Game] u
 const engine = new GameEngine(canvas, 60, WIDTH, HEIGHT);
 console.info("[Game] Engine created", { canvas, width: WIDTH, height: HEIGHT });
 const settings = { health: 3, speed: 1, best: readBest() };
-const crazy = "正気か？ああそう。まあやりたいのならば・・・";
+const crazy = "正気か？ああそう。やりたいのならば・・・";
 const crazyParts = crazy.split("。");
 const crazyLine1 = `${crazyParts[0]}。`;
 const crazyLine2 = crazyParts.slice(1).join("。");
