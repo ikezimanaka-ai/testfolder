@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>十枚の賭け</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CARD GAME · SEVEN DRAW</p>
+          <h1>十枚の賭け</h1>
+        </div>
+        <div class="wallet"><span>◆</span> <strong id="coin-count">0</strong><small>コイン</small></div>
+      </header>
+
+      <section id="title-screen" class="screen title-screen">
+        <span class="eyebrow">CARD GAME · SEVEN DRAW</span>
+        <h2>十枚の賭け</h2>
+        <p class="muted">手札とスペルを駆使して、目標スコアを超えよう。</p>
+        <div class="title-actions">
+          <button id="start-game-button" class="button button-primary">ゲームを始める</button>
+          <button id="open-settings-button" class="button button-secondary">設定・セーブデータ</button>
+        </div>
+      </section>
+
+      <section id="settings-screen" class="screen hidden">
+        <div class="shop-intro"><span class="eyebrow">SETTINGS</span><h2>設定・セーブデータ</h2><p>難易度を選択できます。ゲームに勝利すると自動でCookieにセーブされます（最大5件）。</p></div>
+        <section class="panel settings-panel">
+          <label for="difficulty-select">難易度</label>
+          <select id="difficulty-select">
+            <option value="easy">かんたん</option>
+            <option value="normal">ふつう</option>
+            <option value="hard">むずかしい</option>
+          </select>
+          <p class="muted">難易度が高いほど目標スコアが上がります。</p>
+          <div class="save-load-row">
+            <label for="card-folder-button">カード画像フォルダ</label>
+            <button id="card-folder-button" class="button button-secondary button-small" type="button">フォルダを選択</button>
+          </div>
+          <p id="card-folder-message" class="muted" aria-live="polite">未選択の場合は標準のカード画像を使用します。</p>
+          <div class="save-load-row">
+            <label for="save-select">セーブデータ</label>
+            <select id="save-select"></select>
+            <button id="load-save-button" class="button button-primary button-small">ロード</button>
+          </div>
+          <p id="save-message" class="muted" aria-live="polite"></p>
+          <button id="settings-back-button" class="button button-secondary">タイトルに戻る</button>
+        </section>
+      </section>
+
+      <section id="gameover-screen" class="screen hidden">
+        <div class="shop-intro"><span class="eyebrow">GAME OVER</span><h2>ゲームオーバー</h2><p id="gameover-summary"></p></div>
+        <p class="muted">目標未達のためコイン報酬はありません。勝利セーブも作成されません。</p>
+        <button id="gameover-title-button" class="button button-primary">タイトルへ</button>
+      </section>
+
+      <section id="game-screen" class="screen hidden">
+        <div class="game-heading">
+          <div><span class="eyebrow">現在のゲーム</span><h2 id="game-title">目標スコアを超えよう</h2></div>
+          <div class="scoreboard">
+            <div><small>スコア</small><strong id="score">0</strong></div>
+            <div><small>目標</small><strong id="target-score">500</strong></div>
+            <div><small>残り手札</small><strong id="plays-left">4</strong></div>
+            <div><small>残りリロール</small><strong id="rerolls-left">2</strong></div>
+          </div>
+        </div>
+
+        <div class="progress-track"><div id="score-progress" class="progress-fill"></div></div>
+        <p id="status-message" class="status-message">カードを2〜5枚選んでプレイしてください。</p>
+
+        <div class="table-area">
+          <div class="table-label"><span>YOUR HAND</span><span id="deck-count">山札 42枚</span></div>
+          <div id="hand" class="hand" aria-label="手札"></div>
+          <div id="play-animation-result" class="play-animation-result" aria-live="polite">
+            <p id="animation-detail" class="animation-detail">カードを2〜5枚選ぶと得点予想を表示します。</p>
+            <div class="score-expression"><span id="score-base">—</span><span>×</span><span class="multiplier-value-wrap"><strong id="score-multiplier">—</strong><span id="multiplier-float" class="multiplier-float"></span></span><span>=</span><strong id="score-points">—</strong></div>
+            <strong id="animation-score" class="animation-score"></strong>
+            <button id="skip-animation-button" class="button button-secondary button-small hidden" type="button">演出をスキップ</button>
+          </div>
+          <div class="action-row">
+            <div class="selection-info"><span id="selected-count">0</span> 枚選択中 <span class="muted">· 基礎点はカード数字の合計</span></div>
+            <div class="action-buttons">
+              <button id="reroll-button" class="button button-secondary" disabled>選んだカードをリロール</button>
+              <button id="play-button" class="button button-primary" disabled>選んだカードを出す</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lower-grid">
+          <section class="panel joker-panel">
+            <div class="panel-heading"><h3>ジョーカー</h3><span id="joker-slots">0 / 5</span></div>
+            <div id="active-jokers" class="active-jokers"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><h3>役の倍率</h3><span>強化で +2</span></div>
+            <div id="multipliers" class="multiplier-list"></div>
+          </section>
+        </div>
+        <section class="panel spell-panel">
+          <div class="panel-heading"><h3>スペル</h3><span>所持品を選んで使用</span></div>
+          <div id="spell-inventory" class="spell-inventory"></div>
+        </section>
+        <section id="history-panel" class="panel history-panel">
+          <div class="panel-heading"><h3>このゲームの記録</h3><span id="history-count">0 / 4 回</span></div>
+          <div id="play-history" class="play-history"><span class="muted">カードを出すと記録が表示されます。</span></div>
+        </section>
+      </section>
+
+      <section id="shop-screen" class="screen hidden">
+        <div class="shop-intro"><span class="eyebrow">GAME COMPLETE</span><h2 id="shop-title">ゲーム終了</h2><p id="shop-summary"></p></div>
+        <div class="shop-layout">
+          <section class="panel shop-section">
+            <div class="panel-heading"><h3>ジョーカー</h3><span>所持上限 5 枚 · 売却 1コイン · 今回は0〜3枚</span></div>
+            <div id="owned-jokers" class="shop-grid owned-grid"></div>
+            <div id="joker-shop" class="shop-grid"></div>
+          </section>
+          <section class="panel shop-section">
+            <div class="panel-heading"><h3>役の強化</h3><span>購入ごとに倍率 +2 · 今回は0〜2種</span></div>
+            <div id="upgrade-shop" class="upgrade-grid"></div>
+          </section>
+          <section class="panel shop-section">
+            <div class="panel-heading"><h3>スペルカード</h3><span>購入後、ゲーム中に使用 · 今回は0〜5枚</span></div>
+            <div id="spell-shop" class="shop-grid spell-shop-grid"></div>
+          </section>
+          <section class="panel deck-viewer-panel">
+            <div class="panel-heading"><h3>現在のデッキ</h3><span>スペルによる変化は次のゲームにも引き継がれます</span></div>
+            <div id="deck-view" class="deck-view"></div>
+          </section>
+        </div>
+        <button id="next-game-button" class="button button-primary next-game">次のゲームへ</button>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./poker.js"></script>
+  </body>
+</html>
